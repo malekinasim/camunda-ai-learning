@@ -1,0 +1,15 @@
+camunda:
+  client:
+    mode: self-managed
+    zeebe:
+      grpc-address: http://127.0.0.1:26500
+      rest-address: http://127.0.0.1:8080
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY}
+  model: claude-sonnet-4-6
+
+# 8080 is taken by Zeebe's own REST API (see docker-compose.yml),
+# so our Spring Boot app's test endpoint runs on 9090 instead.
+server:
+  port: 9090
