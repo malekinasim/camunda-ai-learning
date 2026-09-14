@@ -13,3 +13,14 @@ anthropic:
 # so our Spring Boot app's test endpoint runs on 9090 instead.
 server:
   port: 9090
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/camundaai
+    username: camunda
+    password: camunda
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true

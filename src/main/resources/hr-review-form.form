@@ -1,0 +1,39 @@
+{
+  "components": [
+    {
+      "text": "## Job description\n\n{{ jobDescription }}",
+      "type": "text",
+      "id": "TextField_JobDescription"
+    },
+    {
+      "text": "## Resume\n\n{{ resumeText }}",
+      "type": "text",
+      "id": "TextField_ResumeText"
+    },
+    {
+      "label": "Match score (0-100)",
+      "type": "number",
+      "id": "Field_MatchScore",
+      "key": "matchScore",
+      "validate": { "required": true }
+    },
+    {
+      "label": "Decision",
+      "type": "radio",
+      "id": "Field_Verdict",
+      "key": "verdict",
+      "values": [
+        { "label": "Approve", "value": "APPROVED" },
+        { "label": "Reject", "value": "REJECTED" }
+      ],
+      "validate": { "required": true }
+    }
+  ],
+  "type": "default",
+  "id": "hr-review-form",
+  "schemaVersion": 17,
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.30.0"
+  }
+}
