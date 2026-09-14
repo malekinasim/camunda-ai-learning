@@ -1,14 +1,4 @@
 version: "3.7"
-
-# A minimal local Camunda 8 stack for learning.
-# - Zeebe: the process engine that actually executes your BPMN
-# - Operate: a web UI to watch process instances running live (great for learning!)
-#
-# Start with: docker compose up -d
-# Zeebe gRPC:  localhost:26500
-# Zeebe REST:  localhost:8080
-# Operate UI:  http://localhost:8081
-
 services:
   zeebe:
     image: camunda/zeebe:8.6.0
