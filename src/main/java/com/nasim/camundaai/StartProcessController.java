@@ -32,6 +32,20 @@ public class StartProcessController {
     public record StartHrReviewRequest(Long jobId, Long resumeId) {
     }
 
+    @PostMapping("/start-review")
+    public String startReview(@RequestBody StartRequest request) {
+        var event = zeebeClient.newCreateInstanceCommand()
+                .bpmnProcessId("resume-review-process")
+                .latestVersion()
+                .variables(Map.of(
+                        "resumeText", request.resumeText(),
+                        "jobDescription", request.jobDescription()
+                ))
+                .send()
+                .join();
+
+        return "Started process instance: " + event.getProcessInstanceKey();
+    }
     @PostMapping("/start-hr-review")
     public String startHrReview(@RequestBody StartHrReviewRequest request) {
         Job job = jobRepository.findById(request.jobId())

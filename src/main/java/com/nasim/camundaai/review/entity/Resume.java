@@ -23,7 +23,6 @@ public class Resume {
 
     private String candidateName;
 
-    @Lob
     private String resumeText;
 
     @CreatedDate

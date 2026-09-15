@@ -1,5 +1,5 @@
 # مرحله اول: ساخت فایل JAR
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-17 AS build
 
 WORKDIR /app
 
@@ -10,12 +10,12 @@ RUN mvn clean package -DskipTests
 
 
 # مرحله دوم: اجرای برنامه
-FROM eclipse-temurin:21-jre AS runtime
+FROM eclipse-temurin:17-jre AS runtime
 
 WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
 
-EXPOSE 8080
+EXPOSE 9090
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

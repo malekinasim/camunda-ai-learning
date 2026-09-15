@@ -23,7 +23,6 @@ public class Job {
 
     private String title;
 
-    @Lob
     private String description;
 
     @CreatedDate
