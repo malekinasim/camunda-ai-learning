@@ -32,7 +32,18 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
-
+  tasklist:
+    image: camunda/tasklist:8.6.0
+    container_name: tasklist
+    ports:
+      - "8082:8080" # Tasklist UI + REST API (separate from Operate's 8081)
+    environment:
+      - CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_TASKLIST_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_TASKLIST_ZEEBEELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - zeebe
+      - elasticsearch
   operate:
     image: camunda/operate:8.6.0
     container_name: operate

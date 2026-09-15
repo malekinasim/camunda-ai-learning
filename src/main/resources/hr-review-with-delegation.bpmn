@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                   id="Definitions_HrReviewWithDelegation"
+                   targetNamespace="http://camunda.org/schema/1.0/bpmn">
+
+  <bpmn:process id="hr-review-with-delegation-process" name="HR Resume Review (with delegation)" isExecutable="true">
+
+    <bpmn:startEvent id="StartEvent_1" name="New HR review requested">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_HrReview" name="HR: review resume match">
+  <bpmn:extensionElements>
+    <zeebe:formDefinition formId="hr-review-form" />
+    <zeebe:assignmentDefinition assignee="=finalAssignee" />
+    <zeebe:executionListeners>
+      <zeebe:executionListener eventType="start" type="resolve-hr-assignee" retries="3" />
+    </zeebe:executionListeners>
+  </bpmn:extensionElements>
+  <bpmn:incoming>Flow_1</bpmn:incoming>
+  <bpmn:outgoing>Flow_2</bpmn:outgoing>
+</bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="HR review complete">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_HrReview" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_HrReview" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="hr-review-with-delegation-process">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HrReview_di" bpmnElement="Task_HrReview">
+        <dc:Bounds x="280" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="442" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="120" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" />
+        <di:waypoint x="280" y="120" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="380" y="120" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" />
+        <di:waypoint x="442" y="120" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
