@@ -20,25 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * agent-bot's "hands": since agent-bot has no UI, this poller plays the role
- * a human plays when they open Tasklist and submit the HR review form -
- * except it talks to the Tasklist REST API directly instead of a browser.
- * <p>
- * This replaces an earlier version built on zeebeClient.newUserTaskQuery(),
- * which is @ExperimentalApi and threw MalformedResponseException in practice
- * against this broker. The Tasklist v1 REST API (POST /v1/tasks/search,
- * PATCH /v1/tasks/{id}/complete) is stable and handles both discovery and
- * completion, so ZeebeClient is no longer a dependency of this class at all.
- * <p>
- * Auth: Tasklist self-managed defaults to a built-in demo/demo user backed by
- * Elasticsearch - POST /api/login sets a session cookie, which the
- * CookieManager below remembers automatically for every later request, the
- * same way Postman's cookie jar did while this flow was being verified by
- * hand. CSRF prevention needs to be off on the tasklist service
- * (CAMUNDA_TASKLIST_CSRFPREVENTIONENABLED=false in docker-compose.yml) or
- * every POST/PATCH here gets a 403.
- */
 @Component
 public class AgentTaskCompletionPoller {
 
