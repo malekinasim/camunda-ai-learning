@@ -15,7 +15,11 @@
       "type": "number",
       "id": "Field_MatchScore",
       "key": "matchScore",
-      "validate": { "required": true }
+      "validate": {
+        "required": true,
+        "min": 0,
+        "max": 100
+      }
     },
     {
       "label": "Decision",
@@ -23,10 +27,24 @@
       "id": "Field_Verdict",
       "key": "verdict",
       "values": [
-        { "label": "Approve", "value": "APPROVED" },
-        { "label": "Reject", "value": "REJECTED" }
+        {
+          "label": "Approve",
+          "value": "APPROVED"
+        },
+        {
+          "label": "Reject",
+          "value": "REJECTED"
+        }
       ],
-      "validate": { "required": true }
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Reason",
+      "type": "textarea",
+      "id": "Field_Reason",
+      "key": "reason"
     }
   ],
   "type": "default",

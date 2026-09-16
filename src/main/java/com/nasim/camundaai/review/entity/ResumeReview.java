@@ -37,6 +37,14 @@ public class ResumeReview {
 
     private String verdict;
 
+    @Column(columnDefinition = "text")
+    private String reason;
+
+    // Saved before completion so retries reuse the same model decision.
+    private String agentTaskId;
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean agentCompletionConfirmed;
+
     @CreatedDate
     private LocalDateTime createdDate;
 

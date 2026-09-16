@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 @Component
 public class ResolveAssigneeListener {
@@ -33,7 +34,7 @@ public class ResolveAssigneeListener {
     public Map<String, Object> resolveAssignee() throws Exception {
 
         Optional<TaskDelegation> activeDelegation =
-                repository.findActiveDelegation(DELEGATOR_ROLE, TASK_TYPE, LocalDate.now());
+                selectDelegation(repository.findActiveDelegations(DELEGATOR_ROLE, TASK_TYPE, LocalDate.now()));
 
         Map<String, Object> decisionInput = new HashMap<>();
         decisionInput.put("defaultAssignee", DEFAULT_ASSIGNEE);
@@ -51,5 +52,19 @@ public class ResolveAssigneeListener {
         Map<String, Object> output = new HashMap<>();
         output.put("finalAssignee", finalAssignee);
         return output;
+    }
+    static Optional<TaskDelegation> selectDelegation(List<TaskDelegation> candidates) {
+        List<TaskDelegation> specific = candidates.stream()
+                .filter(d -> TASK_TYPE.equals(d.getTaskType())).toList();
+        List<TaskDelegation> selected = specific.isEmpty() ? candidates : specific;
+        if (selected.size() > 1) {
+            throw new IllegalStateException("Overlapping active delegation rules at the same priority");
+        }
+        Optional<TaskDelegation> result = selected.stream().findFirst();
+        if (result.isPresent() && (result.get().getDelegateTo() == null
+                || result.get().getDelegateTo().isBlank())) {
+            throw new IllegalStateException("Delegation target must not be blank");
+        }
+        return result;
     }
 }

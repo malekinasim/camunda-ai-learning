@@ -26,7 +26,7 @@ public class AiAgentWorker {
 
         Map<String, Object> outputVariables = new HashMap<>();
         outputVariables.put("matchScore", result.score());
-        outputVariables.put("verdict", result.verdict());
+        outputVariables.put("verdict", result.reason());
         return outputVariables;
     }
 }

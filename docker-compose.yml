@@ -70,6 +70,7 @@ services:
     environment:
       - CAMUNDA_CLIENT_ZEEBE_GRPCADDRESS=http://zeebe:26500
       - CAMUNDA_CLIENT_ZEEBE_RESTADDRESS=http://zeebe:8080
+      - TASKLIST_BASE_URL=http://tasklist:8080
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camundaai
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:

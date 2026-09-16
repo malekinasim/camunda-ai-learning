@@ -31,7 +31,7 @@ public class ClaudeScoringService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public record ScoreResult(int score, String verdict) {
+    public record ScoreResult(int score, String decision, String reason) {
     }
 
     public ScoreResult evaluateMatch(String resumeText, String jobDescription) throws Exception {
@@ -44,13 +44,31 @@ public class ClaudeScoringService {
 
                 Score how well this resume matches this job from 0 to 100.
                 Respond with ONLY a JSON object, no other text, in this exact shape:
-                {"score": <integer 0-100>, "verdict": "<one sentence, no sugar-coating>"}
+                {"score": <integer 0-100>, "decision": "APPROVED or REJECTED", "reason": "<one sentence>"}
+                For this demo, APPROVED means score >= 50; otherwise use REJECTED.
                 """.formatted(resumeText, jobDescription);
 
         String responseText = callClaude(prompt);
-        JsonNode result = mapper.readTree(extractJson(responseText));
+        return parseResult(responseText);
+    }
 
-        return new ScoreResult(result.path("score").asInt(), result.path("verdict").asText());
+    ScoreResult parseResult(String text) throws Exception {
+        JsonNode result = mapper.readTree(extractJson(text));
+        JsonNode score = result.path("score");
+        JsonNode decision = result.path("decision");
+        JsonNode reason = result.path("reason");
+        if (!score.isIntegralNumber() || !score.canConvertToInt()
+                || score.intValue() < 0 || score.intValue() > 100
+                || !decision.isTextual()
+                || !("APPROVED".equals(decision.textValue()) || "REJECTED".equals(decision.textValue()))
+                || !reason.isTextual() || reason.textValue().isBlank()) {
+            throw new IllegalArgumentException("Invalid scoring result: expected score 0-100, decision and reason");
+        }
+        String expected = score.intValue() >= 50 ? "APPROVED" : "REJECTED";
+        if (!expected.equals(decision.textValue())) {
+            throw new IllegalArgumentException("Decision contradicts the demo threshold");
+        }
+        return new ScoreResult(score.intValue(), decision.textValue(), reason.textValue());
     }
 
     private String callClaude(String prompt) throws Exception {
@@ -87,6 +105,9 @@ public class ClaudeScoringService {
     private String extractJson(String text) {
         int start = text.indexOf('{');
         int end = text.lastIndexOf('}');
+        if (start < 0 || end < start) {
+            throw new IllegalArgumentException("Model response does not contain a JSON object");
+        }
         return text.substring(start, end + 1);
     }
 }

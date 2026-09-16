@@ -7,7 +7,6 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 public interface TaskDelegationRepository extends JpaRepository<TaskDelegation, Long> {
 
@@ -18,7 +17,7 @@ public interface TaskDelegationRepository extends JpaRepository<TaskDelegation, 
               and d.startDate <= :today
               and (d.endDate is null or d.endDate >= :today)
             """)
-    Optional<TaskDelegation> findActiveDelegation(
+    List<TaskDelegation> findActiveDelegations(
             @Param("delegatorRole") String delegatorRole,
             @Param("taskType") String taskType,
             @Param("today") LocalDate today);

@@ -1,211 +1,141 @@
-# Camunda 8 + AI Agent: Task Delegation Between Humans and an AI Agent
+# Camunda task delegation: people and an AI worker
 
-A working example of an idea that goes beyond "AI calls an API inside a BPMN
-step": **a Camunda 8 process where the same human task can be completed
-either by a person or by an AI agent, decided dynamically, with zero
-BPMN diagram changes when the rule changes.**
+This learning project explores a simple idea: the same User Task can be assigned to a person or an AI worker without adding a separate AI branch to the BPMN diagram.
 
-This repo intentionally keeps *both* an earlier, simpler version of the idea
-and the current one, side by side, to show the evolution:
+The current worker uses Tasklist's REST API. It does not open a browser or interact with the form. Browser automation is a possible next step.
 
-| | `resume-review-process` (the "before") | `hr-review-with-delegation-process` (the "after") |
-|---|---|---|
-| AI's role | A Service Task that scores a resume, then a human always reviews the result | The *same* User Task can be completed by a human **or** by the AI agent — decided per task, per delegation rule |
-| Where the decision lives | A BPMN gateway (`matchScore >= 50 ?`) | A DMN decision table, evaluated by an execution listener before the task becomes visible |
-| What changes when the business rule changes | Editing the BPMN | Adding/removing a row in a database table — no redeploy |
+## Two examples
 
-## The core idea: delegation without cluttering the diagram
+| Process | Behavior |
+|---|---|
+| `resume-review-process` | A Service Task scores a resume with Claude. Scores of 50 or more continue to human review; lower scores end the process. |
+| `hr-review-with-delegation-process` | A start execution listener resolves the assignee of one HR User Task using database delegation records and a DMN decision. |
 
-The naive way to let an AI "cover" a human's tasks would be to add a
-gateway to the BPMN: *"if delegated, go to the AI branch; otherwise go to
-the human branch."* That gets messy fast (one gateway per delegatable
-task) and mixes an operational, temporary decision ("Sara is on leave this
-week") with the process's actual business logic.
+## How delegation works
 
-Instead, `hr-review-with-delegation.bpmn` has **one** User Task
-(`Task_HrReview`) with no visible branching at all:
+1. `ResolveAssigneeListener` reads active delegation records for `HR_EMPLOYEE` and `hr-review`.
+2. A rule for `hr-review` takes priority over a general rule (`ALL` or a null task type). Multiple active rules at the selected priority are rejected instead of choosing arbitrarily. A blank target is also rejected.
+3. The listener evaluates `resolve-assignee.dmn` with `hasActiveDelegation`, `delegateTo`, and `defaultAssignee`.
+4. It returns `finalAssignee`. The BPMN assignment expression `=finalAssignee` uses that value.
 
-```
-[Start] → [Task_HrReview: HR reviews resume match] → [End]
-```
+This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, and default human assignee are currently Java constants. The DMN chooses the default user or delegate; it does not yet contain every possible business rule.
 
-The trick is a **Camunda 8 execution listener** (`eventType="start"`,
-i.e. it fires the moment the task is *created*, before anyone can see it in
-Tasklist):
+Changing a database delegation record affects subsequent assignment evaluations without a BPMN redeploy. It does not reassign existing tasks. Changing DMN logic requires deploying an updated decision.
 
-1. `ResolveAssigneeListener` looks up whether there's an active delegation
-   row for the `HR_EMPLOYEE` role today (`TaskDelegationRepository`).
-2. It hands those raw facts (`hasActiveDelegation`, `delegateTo`,
-   `defaultAssignee`) to `resolve-assignee.dmn` — a one-decision DMN table
-   with `UNIQUE` hit policy. **This table is the only place the actual
-   business rule lives.** Want a rule like "never delegate the final
-   sign-off task"? That's a new row in the DMN table, zero Java changes.
-3. The DMN's answer (`"agent-bot"` or the default human assignee) is set
-   as the task's real assignee via `correctAssignee(...)` — a Camunda 8.7
-   feature that lets a *creating* listener override a task's assignee
-   before it's ever shown to anyone.
+## What the bot does
 
-No gateway, no extra BPMN element, no redeploy when a delegation rule is
-added — just a row in a table via `DelegationController`.
+`AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for active `Task_HrReview` tasks assigned to `agent-bot`.
 
-## Why the data model isn't "one flat table"
+For each task it loads the linked `ResumeReview`, scores its resume against the job description, and saves the decision before attempting completion. The saved task ID lets later attempts reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 
-An earlier version of this stored `resumeText`/`jobDescription` directly on
-each review request. That breaks down the moment you check **one job
-description against 100 resumes** — the same job text would be duplicated
-100 times. The model here is relational instead:
+Before completion, the worker reads task state and assignment again. Unknown outcomes remain available for later checks; this is not a transaction across Tasklist and PostgreSQL. The current implementation is intended for **one application instance**. It does not provide distributed leases or exactly-once execution.
 
-- `Job` — one row per job posting, created once.
-- `Resume` — one row per candidate resume, created once.
-- `ResumeReview` — the join: "this resume is being reviewed against this
-  job." One process instance = one `ResumeReview` row, referencing a `Job`
-  and a `Resume` by ID instead of duplicating their text. `matchScore` and
-  `verdict` are filled in on this row when the task is completed — by
-  whoever ends up owning it.
+### Output contract
 
-Whoever completes `Task_HrReview` — a human typing a score into a form, or
-the AI agent running a prompt like an ATS — produces the exact same two
-output variables (`matchScore`, `verdict`). The process doesn't know or
-care which one happened.
+Claude returns a validated integer `score` from 0 to 100, a `decision` (`APPROVED` or `REJECTED`), and a non-empty `reason`. For this demo the decision must agree with the existing threshold: scores of 50 or more mean `APPROVED`.
 
-## How a human without a UI... wait, how does a *headless AI agent* complete
-a Camunda 8.7 User Task?
+The delegated task receives:
 
-This turned out to be the hardest technical problem in the whole project,
-and worth calling out on its own, because the answer isn't obvious and the
-platform doesn't make it easy:
+| Variable | Value |
+|---|---|
+| `matchScore` | Integer from 0 to 100 |
+| `verdict` | `APPROVED` or `REJECTED`, matching the form's radio options |
+| `reason` | A separate explanation |
 
-- Zeebe's User Task model is fundamentally built around a **human opening
-  Tasklist and clicking a button** — unlike Service Tasks, Zeebe never
-  *pushes* a User Task as a Job to a worker.
-- The Zeebe Java client's `newUserTaskQuery()` (the seemingly obvious way
-  for code to find its own tasks) is `@ExperimentalApi`, and in practice
-  throws `MalformedResponseException` against this broker version.
-- The actual working answer: the **Tasklist REST API** (`/v1/tasks/search`,
-  `/v1/tasks/{id}/complete`) — a separate, stable component from the Zeebe
-  broker, with its own Elasticsearch-backed index. `AgentTaskCompletionPoller`
-  polls this API every 10 seconds for tasks assigned to the agent, runs
-  `ClaudeScoringService` against them (the same scoring logic a human would
-  eyeball), and completes them with the same `matchScore`/`verdict`
-  contract a human's form submission would produce.
-- One more platform quirk this surfaced: Tasklist's complete endpoint
-  requires **the authenticated caller to literally be the task's
-  assignee**. There is no built-in concept of a headless "service identity"
-  distinct from a logged-in human — everything in Tasklist v1 assumes a
-  person behind every login. The workaround here is to rename Tasklist's
-  built-in default user to `agent-bot` (`CAMUNDA_TASKLIST_USERID` in
-  `docker-compose.yml`), so the poller authenticates *as* the same identity
-  the DMN table assigns tasks to. It's a genuine limitation of the
-  platform's task model, not something this project could design around.
+The older Service Task keeps its existing contract: `verdict` contains the explanation. Invalid model output fails the attempt rather than silently becoming score zero.
 
-## Project structure
+## Data model
 
-```
-docker-compose.yml           Zeebe, Elasticsearch, Operate, Tasklist, Postgres, the app itself
-src/main/resources/
-  resume-review.bpmn         The "before": AI scores, gateway decides if a human reviews
-  hr-review-with-delegation.bpmn   The "after": one User Task, assignee resolved dynamically
-  hr-review-form.form        Camunda Form for the human path (shows job+resume, takes matchScore/verdict)
-  resolve-assignee.dmn       The delegation business rule, as data, not code
+`Job` stores a job posting, `Resume` stores a resume, and `ResumeReview` links them to a process instance. The bot saves its result and task completion marker on the review row.
 
-src/main/java/com/nasim/camundaai/
-  CamundaAiApplication.java  @Deployment(resources = {"classpath*:*.bpmn", "*.dmn", "*.form"})
-  StartProcessController.java   POST /start-review (old process), POST /start-hr-review (new process)
-  ai/
-    ClaudeScoringService.java    Shared "score this resume against this job" logic
-    AiAgentWorker.java           Job worker for the OLD process's call-ai-agent service task
-  delegation/
-    TaskDelegation.java, TaskDelegationRepository.java
-    ResolveAssigneeListener.java   The execution listener described above
-    DelegationController.java     POST/GET /delegations
-  review/
-    entity/  Job.java, Resume.java, ResumeReview.java
-    repository/  JobRepository, ResumeRepository, ResumeReviewRepository
-    controller/  JobController, ResumeController, ResumeReviewController
-    agent/
-      AgentTaskCompletionPoller.java   The Tasklist-API-based agent completion loop
-```
+Human form submission writes process variables. **Synchronizing human results back to `ResumeReview` is not implemented.** Existing rows created before the bot task marker was added are not assumed to contain reusable validated decisions.
 
-## Running it
+## Versions and task type
 
-### 1. Set your API key
+The Java SDK is pinned to **8.7.39**. The checked-in Docker images for Zeebe, Tasklist, and Operate are **8.6.0**. This change preserves that existing setup; it does not claim the deployment is an all-8.7 cluster.
+
+The BPMN User Task currently has no `<zeebe:userTask />` extension and uses the job-worker-based implementation. The worker completes it through Tasklist v1. Migrating to native Camunda User Tasks requires checking form configuration and the supported completion API; it is not just a client version change.
+
+## Authentication
+
+The local demo configures Tasklist's default account as `agent-bot`. The poller uses that account and cookie authentication, with CSRF prevention disabled in the local Compose setup. Credentials can be supplied through `TASKLIST_USERNAME` and `TASKLIST_PASSWORD`; the defaults match Compose.
+
+API calls that encounter an expired session retry login at most once per request. HTTP calls have timeouts. This local cookie setup is not a claim that Camunda lacks machine-to-machine authentication. A future Browser Agent will need its own authorized browser session.
+
+The default human assignee is `hr-employee`. Configure an actual human account and its permissions before testing the human path; the included bot account does not create that account automatically.
+
+## Run locally
+
+Prerequisites: Docker Compose, an Anthropic API key, and either Java 17 with Maven or Docker for the application build. No Maven Wrapper is included.
+
+Set the key in your shell or local environment:
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_API_KEY="your-key"
 ```
 
-### 2. Start the stack
+Choose **one** application launch method.
+
+### Option A: infrastructure in Docker, application in your IDE
 
 ```bash
-docker compose up -d
+docker compose up -d zeebe elasticsearch operate tasklist postgres
+mvn spring-boot:run
 ```
 
-This brings up Zeebe, Elasticsearch, Operate (`:8081`), Tasklist (`:8082`),
-and Postgres. Give it a minute or two.
+Alternatively run `CamundaAiApplication` from your IDE. The application connects to services on localhost.
 
-### 3. Start the Spring Boot app
-
-```bash
-./mvnw spring-boot:run
-```
-(or run `CamundaAiApplication` from your IDE). Watch the log for the
-`ZeebeDeploymentAnnotationProcessor` line confirming the BPMN/DMN/form
-resources deployed.
-
-### 4. Try the "before" process
+### Option B: everything in Docker
 
 ```bash
-curl -X POST http://localhost:9090/start-review \
-  -H "Content-Type: application/json" \
-  -d '{"resumeText": "...", "jobDescription": "..."}'
+docker compose up -d --build
 ```
 
-### 5. Try the "after" process, with delegation
+Compose sets `TASKLIST_BASE_URL=http://tasklist:8080` for the application container. Do not start a second application on port 9090 at the same time. Containers may take time to become ready; `depends_on` alone does not guarantee readiness.
+
+Operate is at `http://localhost:8081`, Tasklist at `http://localhost:8082`, and the application at `http://localhost:9090`. Startup deploys BPMN, DMN, and form resources through `@Deployment`.
+
+## Try a delegated review
 
 ```bash
-# One job, one resume, created once
-curl -X POST http://localhost:9090/jobs -H "Content-Type: application/json" \
-  -d '{"title": "Backend Engineer", "description": "..."}'
-curl -X POST http://localhost:9090/resumes -H "Content-Type: application/json" \
-  -d '{"candidateName": "Ali", "resumeText": "..."}'
+curl -X POST http://localhost:9090/jobs -H 'Content-Type: application/json' \
+  -d '{"title":"Backend Engineer","description":"Java and Spring Boot experience"}'
 
-# Delegate HR_EMPLOYEE's tasks to the agent for a date range
-curl -X POST http://localhost:9090/delegations -H "Content-Type: application/json" \
-  -d '{"delegatorRole": "HR_EMPLOYEE", "delegateTo": "agent-bot", "startDate": "2026-09-15", "endDate": "2026-09-30"}'
+curl -X POST http://localhost:9090/resumes -H 'Content-Type: application/json' \
+  -d '{"candidateName":"Example Candidate","resumeText":"Java backend developer with Spring Boot experience"}'
 
-# Start a review - lands on agent-bot because of the delegation above
-curl -X POST http://localhost:9090/start-hr-review -H "Content-Type: application/json" \
-  -d '{"jobId": 1, "resumeId": 1}'
+curl -X POST http://localhost:9090/delegations -H 'Content-Type: application/json' \
+  -d '{"delegatorRole":"HR_EMPLOYEE","taskType":"hr-review","delegateTo":"agent-bot","startDate":"2026-09-16","endDate":"2026-09-30"}'
 
-# See the result once the poller (every 10s) completes it
+curl -X POST http://localhost:9090/start-hr-review -H 'Content-Type: application/json' \
+  -d '{"jobId":1,"resumeId":1}'
+
 curl http://localhost:9090/resume-reviews
 ```
 
-Without an active delegation row, the same `/start-hr-review` call lands on
-the default human assignee instead, visible and completable in Tasklist at
-http://localhost:8082.
+Use the IDs returned by the create calls and a date range that includes today. Avoid creating overlapping delegation records at the same priority. Without active delegation, the task goes to the configured human assignee.
 
-## API reference
+The original example is available through `POST /start-review` with `resumeText` and `jobDescription`.
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /jobs` | Create a job posting |
-| `POST /resumes` | Create a candidate resume |
-| `POST /start-review` | Start the old, AI-scores-then-human-reviews process |
-| `POST /start-hr-review` | Start the delegation-aware process for a (job, resume) pair |
-| `POST /delegations` | Create a delegation rule |
-| `GET /delegations` | List delegation rules |
-| `GET /resume-reviews` | See every review's current state (score, verdict, which process instance) |
+## Tests
 
-## Future work / vision
+```bash
+mvn test
+```
 
-The AI agent here polls Tasklist's REST API directly — the pragmatic,
-actually-working version of a bigger idea: an agent that operates Tasklist
-the same way a human would, through the UI itself (a "browser agent"),
-with a proper dispatcher, a persistent execution store, lease-based
-concurrency control so two agent workers never race on the same task, and
-a real state machine for retries and reconciliation. That version would
-also generalize past Tasklist's REST quirks by driving the same web UI a
-human uses, and could extend to any Camunda version without depending on a
-specific REST API's stability. It's out of scope for a learning project,
-but it's the natural next step if this became more than a demo.
+Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, and reuse of saved decisions after completion failure. They do not require a real model call or running Camunda cluster.
+
+## Remaining limitations
+
+- The poller handles the first 100 matching tasks per round. A persistently failing first page can delay later work; complete pagination is future work.
+- Scoring is sequential and specific to the HR task. This is not yet a general task dispatcher.
+- Multiple application instances require task-level locking and durable execution coordination.
+- Assignment can change between a status check and completion; the status check is not atomic.
+- Human result synchronization and comprehensive request validation are not implemented.
+- The local database uses Hibernate `ddl-auto: update`; production schema changes need explicit migrations.
+
+## Next step: browser execution
+
+Keep the working API path as a baseline. A separate browser executor can authenticate, open the assigned form, inspect actual options, fill the fields, and verify submission. Prompts and DMN can provide the decision while the form supplies its current choices and validation behavior.
+
+Version-specific task APIs, authentication, and UI routes should sit behind adapters. This makes future upgrades manageable, but does not make browser automation automatically compatible with every Camunda version.
