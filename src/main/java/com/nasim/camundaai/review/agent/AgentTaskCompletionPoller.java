@@ -143,7 +143,7 @@ public class AgentTaskCompletionPoller {
         if (taskId.equals(review.getAgentTaskId()) && review.isAgentCompletionConfirmed()) {
             return; // Tasklist's search index may still show a completed task.
         }
-        if (!taskId.equals(review.getAgentTaskId())) {
+        if (review.getAgentTaskId()== null || !taskId.equals(review.getAgentTaskId())) {
             ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
                     review.getResume().getResumeText(), review.getJob().getDescription());
             review.setMatchScore((double) result.score());
