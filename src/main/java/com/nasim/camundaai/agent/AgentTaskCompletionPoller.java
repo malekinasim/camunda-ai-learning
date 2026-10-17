@@ -23,14 +23,12 @@ public class AgentTaskCompletionPoller {
 
     private final TasklistClient tasklist;
     private final ResumeReviewRepository resumeReviewRepository;
-    private final ClaudeScoringService claudeScoringService;
+    private final AgentTaskExecutor agentTaskExecutor;
 
-    public AgentTaskCompletionPoller(TasklistClient tasklist,
-                                     ResumeReviewRepository resumeReviewRepository,
-                                     ClaudeScoringService claudeScoringService) {
+    public AgentTaskCompletionPoller(TasklistClient tasklist, ResumeReviewRepository resumeReviewRepository, AgentTaskExecutor agentTaskExecutor) {
         this.tasklist = tasklist;
         this.resumeReviewRepository = resumeReviewRepository;
-        this.claudeScoringService = claudeScoringService;
+        this.agentTaskExecutor = agentTaskExecutor;
     }
 
     @Scheduled(fixedDelay = 10000)
@@ -56,15 +54,13 @@ public class AgentTaskCompletionPoller {
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReview found for process instance " + task.processInstanceKey()));
 
-        if (task.id().equals(review.getAgentTaskId()) && review.isAgentCompletionConfirmed()) {
-            return; // Tasklist's search index may still show a completed task.
-        }
         if (!task.id().equals(review.getAgentTaskId())) {
-            ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
-                    review.getResume().getResumeText(), review.getJob().getDescription());
-            review.setMatchScore((double) result.score());
-            review.setVerdict(result.decision());
-            review.setReason(result.reason());
+            Map<String, Object> output = agentTaskExecutor.execute(new AgentTask(task.id(),task.processInstanceKey(),
+                    task.taskDefinitionId()),Map.of("resume-txt",review.getResume().getResumeText(),
+                    "job-description",review.getJob().getDescription()));
+            review.setMatchScore(((Number) output.get("matchScore")).doubleValue());
+            review.setVerdict((String) output.get("verdict"));
+            review.setReason((String) output.get("reason"));
             review.setAgentTaskId(task.id());
             review.setAgentCompletionConfirmed(false);
             resumeReviewRepository.save(review);
