@@ -16,8 +16,13 @@
   <bpmn:extensionElements>
     <zeebe:formDefinition formId="hr-review-form" />
     <zeebe:assignmentDefinition assignee="=finalAssignee" />
+    <zeebe:ioMapping>
+      <zeebe:input source="=&#34;hr-review&#34;" target="taskType" />
+      <zeebe:input source="=&#34;HR_EMPLOYEE&#34;" target="delegatorRole" />
+      <zeebe:input source="=&#34;hr-employee&#34;" target="defaultAssignee" />
+    </zeebe:ioMapping>
     <zeebe:executionListeners>
-      <zeebe:executionListener eventType="start" type="resolve-hr-assignee" retries="3" />
+      <zeebe:executionListener eventType="start" type="resolve-assignee" retries="3" />
     </zeebe:executionListeners>
   </bpmn:extensionElements>
   <bpmn:incoming>Flow_1</bpmn:incoming>

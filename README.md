@@ -13,12 +13,12 @@ The current worker uses Tasklist's REST API. It does not open a browser or inter
 
 ## How delegation works
 
-1. `ResolveAssigneeListener` reads active delegation records for `HR_EMPLOYEE` and `hr-review`.
-2. A rule for `hr-review` takes priority over a general rule (`ALL` or a null task type). Multiple active rules at the selected priority are rejected instead of choosing arbitrarily. A blank target is also rejected.
+1. The User Task declares three input mappings: `taskType`, `delegatorRole` and `defaultAssignee`. The generic `resolve-assignee` start execution listener reads them and loads the active delegation records for that role and task type. A missing input fails the job with the process and element id; `DelegationWiringTest` also checks every BPMN file at build time.
+2. A rule for the task's own type takes priority over a general rule (`ALL` or a null task type). Multiple active rules at the selected priority are rejected instead of choosing arbitrarily. A blank target is also rejected.
 3. The listener evaluates `resolve-assignee.dmn` with `hasActiveDelegation`, `delegateTo`, and `defaultAssignee`.
 4. It returns `finalAssignee`. The BPMN assignment expression `=finalAssignee` uses that value.
 
-This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, and default human assignee are currently Java constants. The DMN chooses the default user or delegate; it does not yet contain every possible business rule.
+This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, and default human assignee are declared per task in the BPMN, so another User Task can use delegation without new Java code. The DMN chooses the default user or delegate; it does not yet contain every possible business rule.
 
 Changing a database delegation record affects subsequent assignment evaluations without a BPMN redeploy. It does not reassign existing tasks. Changing DMN logic requires deploying an updated decision.
 

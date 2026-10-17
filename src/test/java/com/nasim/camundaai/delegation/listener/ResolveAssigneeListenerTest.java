@@ -12,18 +12,33 @@ class ResolveAssigneeListenerTest {
     }
     @Test void specificRuleWinsOverGeneralRules() {
         var specific = rule("hr-review", "person");
-        assertSame(specific, ResolveAssigneeListener.selectDelegation(
+        assertSame(specific, ResolveAssigneeListener.selectDelegation("hr-review",
                 List.of(rule("ALL", "bot"), rule(null, "other"), specific)).orElseThrow());
     }
+    @Test void specificityDependsOnTheTaskTypeAskedFor() {
+        // The same rules, asked for another task type: the hr-review rule is not
+        // specific for it, so only the general rule should apply.
+        var general = rule("ALL", "bot");
+        assertSame(general, ResolveAssigneeListener.selectDelegation("contract-approval",
+                List.of(general)).orElseThrow());
+    }
     @Test void ambiguousRulesAreRejected() {
-        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation(
+        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation("hr-review",
                 List.of(rule("hr-review", "a"), rule("hr-review", "b"))));
-        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation(
+        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation("hr-review",
                 List.of(rule("ALL", "a"), rule(null, "b"))));
     }
     @Test void noRuleAndBlankTargetAreHandled() {
-        assertTrue(ResolveAssigneeListener.selectDelegation(List.of()).isEmpty());
-        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation(
+        assertTrue(ResolveAssigneeListener.selectDelegation("hr-review", List.of()).isEmpty());
+        assertThrows(IllegalStateException.class, () -> ResolveAssigneeListener.selectDelegation("hr-review",
                 List.of(rule("hr-review", " "))));
+    }
+    @Test void missingInputFailsWithTheTaskName() {
+        var e = assertThrows(IllegalStateException.class, () ->
+                ResolveAssigneeListener.requireDeclared("taskType", null, "my-process/Task_X"));
+        assertTrue(e.getMessage().contains("my-process/Task_X"));
+        assertTrue(e.getMessage().contains("taskType"));
+        assertThrows(IllegalStateException.class, () ->
+                ResolveAssigneeListener.requireDeclared("delegatorRole", "  ", "p/t"));
     }
 }
