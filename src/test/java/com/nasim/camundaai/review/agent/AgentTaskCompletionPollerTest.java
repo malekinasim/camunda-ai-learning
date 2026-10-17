@@ -1,5 +1,7 @@
 package com.nasim.camundaai.review.agent;
 
+import com.nasim.camundaai.agent.AgentTaskCompletionPoller;
+import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.ai.ClaudeScoringService;
 import com.nasim.camundaai.review.entity.Job;
 import com.nasim.camundaai.review.entity.Resume;
@@ -85,12 +87,12 @@ class AgentTaskCompletionPollerTest {
         } finally { server.stop(0); }
     }
 
+
+
     private AgentTaskCompletionPoller poller(HttpServer server, ResumeReviewRepository repository,
-                                              ClaudeScoringService scoring) {
-        var poller = new AgentTaskCompletionPoller(repository, scoring);
-        ReflectionTestUtils.setField(poller, "tasklistBaseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
-        ReflectionTestUtils.setField(poller, "tasklistUsername", "agent-bot");
-        ReflectionTestUtils.setField(poller, "tasklistPassword", "test-password");
-        return poller;
+                                             ClaudeScoringService scoring) {
+        var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
+                "agent-bot", "test-password");
+        return new AgentTaskCompletionPoller(tasklist, repository, scoring);
     }
 }
