@@ -19,7 +19,7 @@
       </input>
       <input id="InputClause_1cm32g5" label="taskType">
         <inputExpression id="LiteralExpression_00svay0" typeRef="string">
-          <text></text>
+          <text>taskType</text>
         </inputExpression>
       </input>
       <output id="Output_FinalAssignee" label="Final assignee" name="finalAssignee" typeRef="string" />
@@ -42,7 +42,7 @@
       </rule>
       <rule id="Rule_NotDelegated">
         <inputEntry id="InputEntry_2_Default">
-          <text>"hr-employee"</text>
+          <text>-</text>
         </inputEntry>
         <inputEntry id="InputEntry_2_HasDelegation">
           <text>false</text>
@@ -51,10 +51,27 @@
           <text>-</text>
         </inputEntry>
         <inputEntry id="UnaryTests_1ux8han">
-          <text>"hr-review"</text>
+          <text>-</text>
         </inputEntry>
         <outputEntry id="OutputEntry_2">
           <text>defaultAssignee</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1usd3kk">
+        <inputEntry id="UnaryTests_0ycz7k0">
+          <text>"َALL"</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0n7bajt">
+          <text>true</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_0jrysvs">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_10akgnd">
+          <text>"hr-review"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0to6uk1">
+          <text>delegateTo</text>
         </outputEntry>
       </rule>
     </decisionTable>

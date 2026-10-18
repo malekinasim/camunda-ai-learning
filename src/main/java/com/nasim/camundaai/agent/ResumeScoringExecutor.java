@@ -55,6 +55,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         variables.put("matchScore", review.getMatchScore().intValue());
         variables.put("verdict", review.getVerdict());
         variables.put("reason", review.getReason());
+        variables.put("isComplete", review.isAgentCompletionConfirmed());
         return variables;
     }
     @Override

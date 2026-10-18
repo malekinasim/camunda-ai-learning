@@ -56,15 +56,18 @@ public class AgentTaskCompletionPoller {
         if(agentTaskExecutor.isEmpty())//TODO we should redelegated it to defaultAssignee
             throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + "is not for this executor");
 
-       Map<String, Object> variableResult = agentTaskExecutor.get().execute(new AgentTask
+       Map<String, Object> result = agentTaskExecutor.get().execute(new AgentTask
                 (task.id(), task.taskState(), task.assignee(), task.processInstanceKey(),
                         task.taskDefinitionId()));
 
-        tasklist.completeTask(task.id(), variableResult);
-        log.info("agent-bot completed task -first step{}", task.id());
 
+        boolean alreadyDone = (boolean) result.remove("isComplete");   // remove: not a process variable
+        if (alreadyDone) return;
+
+        tasklist.completeTask(task.id(), result);
         TasklistTask current = tasklist.getTask(task.id());
         agentTaskExecutor.get().completeTask(new AgentTask(current.id(), current.taskState(), current.assignee(), current.processInstanceKey(), current.taskDefinitionId()), AGENT_ASSIGNEE);
+
 
     }
 }
