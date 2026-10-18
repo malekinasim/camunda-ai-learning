@@ -15,7 +15,7 @@ The current worker uses Tasklist's REST API. It does not open a browser or inter
 
 1. The User Task declares three input mappings: `taskType`, `delegatorRole` and `defaultAssignee`. The generic `resolve-assignee` start execution listener reads them and loads the active delegation records for that role and task type. A missing input fails the job with the process and element id; `DelegationWiringTest` also checks every BPMN file at build time.
 2. A rule for the task's own type takes priority over a general rule (`ALL` or a null task type). Multiple active rules at the selected priority are rejected instead of choosing arbitrarily. A blank target is also rejected.
-3. The listener evaluates `resolve-assignee.dmn` with `hasActiveDelegation`, `delegateTo`, and `defaultAssignee`.
+3. The listener evaluates `resolve-assignee.dmn` with `hasActiveDelegation`, `delegateTo`, `defaultAssignee`, and `taskType`. Here `taskType` is the task type of the selected delegation record (empty when no delegation is active), so the DMN decides which delegation scopes it accepts.
 4. It returns `finalAssignee`. The BPMN assignment expression `=finalAssignee` uses that value.
 
 This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, and default human assignee are declared per task in the BPMN, so another User Task can use delegation without new Java code. The DMN chooses the default user or delegate; it does not yet contain every possible business rule.
@@ -24,7 +24,7 @@ Changing a database delegation record affects subsequent assignment evaluations 
 
 ## What the bot does
 
-`AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for active `Task_HrReview` tasks assigned to `agent-bot`.
+`AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for all active (`CREATED`) tasks assigned to `agent-bot`, of any task type and either implementation. For each task it picks an `AgentTaskExecutor` whose `supports(...)` accepts the task's `taskDefinitionId`. A task without a matching executor currently fails that round and is logged; handing it back to its default assignee is planned, not built.
 
 For each task it loads the linked `ResumeReview`, scores its resume against the job description, and saves the decision before attempting completion. The saved task ID lets later attempts reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 
@@ -54,7 +54,21 @@ Human form submission writes process variables. **Synchronizing human results ba
 
 The Java SDK is pinned to **8.7.39**. The checked-in Docker images for Zeebe, Tasklist, and Operate are **8.6.0**. This change preserves that existing setup; it does not claim the deployment is an all-8.7 cluster.
 
-The BPMN User Task currently has no `<zeebe:userTask />` extension and uses the job-worker-based implementation. The worker completes it through Tasklist v1. Migrating to native Camunda User Tasks requires checking form configuration and the supported completion API; it is not just a client version change.
+Job-worker-based User Tasks are deprecated as of Camunda 8.6. The HR User Task now uses the Camunda (Zeebe) User Task implementation (`<zeebe:userTask />`). Instances started from older process versions can still have job-worker-based tasks, so both kinds can exist at the same time.
+
+The worker uses Tasklist v1 for both kinds; it does not need a second API:
+
+- `POST /v1/tasks/search` returns both kinds. Each task has an `implementation` field: `JOB_WORKER` or `ZEEBE_USER_TASK`.
+- `PATCH /v1/tasks/{id}/complete` completes both kinds. For a Zeebe User Task, Tasklist forwards the completion to the Zeebe REST API.
+
+For that forwarding, Tasklist needs the Zeebe REST address in addition to the gRPC gateway address. Compose sets both:
+
+```yaml
+- CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS=zeebe:26500     # gRPC, job-worker-based tasks
+- CAMUNDA_TASKLIST_ZEEBE_RESTADDRESS=http://zeebe:8080  # REST, Zeebe User Tasks
+```
+
+Without the REST address, completing a Zeebe User Task through Tasklist fails with HTTP 500 and a `ClientException` (`Connect to http://localhost:8089 ... Connection refused`), while job-worker-based tasks keep working. This was verified against the 8.6.0 images in this repository.
 
 ## Authentication
 
