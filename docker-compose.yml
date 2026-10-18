@@ -54,6 +54,7 @@ services:
       - "8082:8080" # Tasklist UI + REST API (separate from Operate's 8081)
     environment:
       - CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_TASKLIST_ZEEBE_RESTADDRESS=http://zeebe:8080
       - CAMUNDA_TASKLIST_ELASTICSEARCH_URL=http://elasticsearch:9200
       - CAMUNDA_TASKLIST_ZEEBEELASTICSEARCH_URL=http://elasticsearch:9200
       - CAMUNDA_TASKLIST_CSRFPREVENTIONENABLED=false
