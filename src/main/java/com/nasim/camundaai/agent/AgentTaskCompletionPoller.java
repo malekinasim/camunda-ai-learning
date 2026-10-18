@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 
 @Component
@@ -23,13 +24,11 @@ public class AgentTaskCompletionPoller {
     private static final Logger log = LoggerFactory.getLogger(AgentTaskCompletionPoller.class);
     private static final String AGENT_ASSIGNEE = "agent-bot";
     private final TasklistClient tasklist;
-    private final AgentTaskExecutor agentTaskExecutor;
-
-    public AgentTaskCompletionPoller( TasklistClient tasklist,
-                                      AgentTaskExecutor agentTaskExecutor) {
+    private final AgentTaskExecutors agentTaskExecutors;
+    public AgentTaskCompletionPoller(TasklistClient tasklist, AgentTaskExecutors agentTaskExecutors) {
 
         this.tasklist = tasklist;
-        this.agentTaskExecutor = agentTaskExecutor;
+        this.agentTaskExecutors = agentTaskExecutors;
     }
 
     @Scheduled(fixedDelay = 10000)
@@ -37,7 +36,7 @@ public class AgentTaskCompletionPoller {
         try {
             for (TasklistTask task : tasklist.searchTasks(Map.of(
                     "assignee", AGENT_ASSIGNEE,
-                    "state", "CREATE",
+                    "state", TaskState.CREATED.name(),
                     "pageSize", 100
             ))) {
                 try {
@@ -52,13 +51,21 @@ public class AgentTaskCompletionPoller {
     }
 
     private void completeOne(TasklistTask task) throws Exception {
-        Map<String, Object> variableResult= agentTaskExecutor.execute(new AgentTask(task.id(),task.processInstanceKey(),
-                    task.taskDefinitionId()));
+        Optional<AgentTaskExecutor> agentTaskExecutor=agentTaskExecutors.forType(task.taskDefinitionId());
 
+        if(agentTaskExecutor.isEmpty())//TODO we should redelegated it to defaultAssignee
+            throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + "is not for this executor");
 
-        tasklist.completeTask(task.id(),variableResult);
+       Map<String, Object> variableResult = agentTaskExecutor.get().execute(new AgentTask
+                (task.id(), task.taskState(), task.assignee(), task.processInstanceKey(),
+                        task.taskDefinitionId()));
+
+        tasklist.completeTask(task.id(), variableResult);
         log.info("agent-bot completed task -first step{}", task.id());
+        if (!(boolean) variableResult.get("isComplete")) {
+            TasklistTask current = tasklist.getTask(task.id());
+            agentTaskExecutor.get().completeTask(new AgentTask(current.id(), current.taskState(), current.assignee(), current.processInstanceKey(), current.taskDefinitionId()), AGENT_ASSIGNEE);
 
-        agentTaskExecutor.completeTask( tasklist.getTask(task.id()),AGENT_ASSIGNEE);
+        }
     }
 }

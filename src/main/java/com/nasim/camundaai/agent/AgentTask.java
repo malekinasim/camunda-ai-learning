@@ -4,5 +4,5 @@ package com.nasim.camundaai.agent;
  * Separate from TasklistTask: the executor should not care whether the
  * task came from Tasklist, a job worker or a test.
  */
-public record AgentTask(String id, long processInstanceKey, String taskDefinitionId) {
+public record AgentTask(String id,String state,String assignee, long processInstanceKey, String taskDefinitionId) {
 }

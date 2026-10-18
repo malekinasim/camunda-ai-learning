@@ -16,8 +16,7 @@ import java.util.Map;
 @Component
 public class ResumeScoringExecutor implements AgentTaskExecutor {
 
-    private static final List<String> TASK_DEFINITION_ID_LIST = List.of("Task_HrReview");
-
+   private static final String Task_HR_REVIEW_DEFINITION_ID = "Task_HrReview";
     private final ClaudeScoringService claudeScoringService;
     private final ResumeReviewRepository resumeReviewRepository;
 
@@ -27,46 +26,49 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
     }
 
     @Override
+    public boolean supports(String taskType) {
+        return taskType.equals(Task_HR_REVIEW_DEFINITION_ID);
+    }
+
+    @Override
     public Map<String, Object> execute(AgentTask task) throws Exception {
-        if (!TASK_DEFINITION_ID_LIST.contains(task.taskDefinitionId())) {
-            throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + "is not for this executor");
-        }
-        ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(task.processInstanceKey())
+    ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(task.processInstanceKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReview found for process instance " + task.processInstanceKey()));
 
 
-        if (!task.id().equals(review.getAgentTaskId()))
-            throw new IllegalArgumentException(  "No ResumeReview found for process instance task id" + task.id());
-        ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
-                review.getResume().getResumeText(), review.getJob().getDescription());
+        if (task.id().equals(review.getAgentTaskId()) && !review.isAgentCompletionConfirmed()) {
 
+            ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
+                    review.getResume().getResumeText(), review.getJob().getDescription());
+            review.setMatchScore((double) result.score());
+            review.setVerdict(result.decision());
+            review.setReason(result.reason());
+            review.setAgentTaskId(task.id());
+            review.setAgentCompletionConfirmed(false);
+            resumeReviewRepository.save(review);
 
-        review.setMatchScore((double) result.score());
-        review.setVerdict(result.decision());
-        review.setReason(result.reason());
-        review.setAgentTaskId(task.id());
-        review.setAgentCompletionConfirmed(false);
-        resumeReviewRepository.save(review);
+        }
+
         Map<String, Object> variables = new LinkedHashMap<>();
-        variables.put("matchScore", result.score());
-        variables.put("verdict", result.decision());
-        variables.put("reason", result.reason());
+        variables.put("matchScore", review.getMatchScore());
+        variables.put("verdict", review.getVerdict());
+        variables.put("reason", review.getReason());
+        variables.put("isComplete", review.isAgentCompletionConfirmed());
         return variables;
     }
-
     @Override
-    public void completeTask(TasklistTask current,String assignee) {
+    public void completeTask(AgentTask current,String assignee) {
         ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(current.processInstanceKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReview found for process instance " + current.processInstanceKey()));
 
-        if ("COMPLETED".equals(current.taskState())) {
+        if (TaskState.COMPLETED.name().equals(current.state())) {
             review.setAgentCompletionConfirmed(true);
             resumeReviewRepository.save(review);
             return;
         }
-        if (!"CREATED".equals(current.taskState()) || !assignee.equals(current.assignee())) {
+        if (!TaskState.CREATED.name().equals(current.state()) || !assignee.equals(current.assignee())) {
             return;
         }
         review.setAgentCompletionConfirmed(true);

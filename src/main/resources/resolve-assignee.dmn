@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_ResolveAssignee" name="resolve-assignee_hr-review" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.10.0">
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_ResolveAssignee" name="resolve-assignee" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.10.0">
   <decision id="resolve-assignee" name="Resolve Assignee">
     <decisionTable id="DecisionTable_ResolveAssignee">
       <input id="Input_DefaultAssignee" label="Default assignee">
@@ -17,10 +17,15 @@
           <text>delegateTo</text>
         </inputExpression>
       </input>
+      <input id="InputClause_1cm32g5" label="taskType">
+        <inputExpression id="LiteralExpression_00svay0" typeRef="string">
+          <text></text>
+        </inputExpression>
+      </input>
       <output id="Output_FinalAssignee" label="Final assignee" name="finalAssignee" typeRef="string" />
       <rule id="Rule_Delegated">
         <inputEntry id="InputEntry_1_Default">
-          <text>hr-employee</text>
+          <text>"hr-employee"</text>
         </inputEntry>
         <inputEntry id="InputEntry_1_HasDelegation">
           <text>true</text>
@@ -28,19 +33,25 @@
         <inputEntry id="InputEntry_1_DelegateTo">
           <text>-</text>
         </inputEntry>
+        <inputEntry id="UnaryTests_0plq4gy">
+          <text>"hr-review"</text>
+        </inputEntry>
         <outputEntry id="OutputEntry_1">
           <text>delegateTo</text>
         </outputEntry>
       </rule>
       <rule id="Rule_NotDelegated">
         <inputEntry id="InputEntry_2_Default">
-          <text>hr-employee</text>
+          <text>"hr-employee"</text>
         </inputEntry>
         <inputEntry id="InputEntry_2_HasDelegation">
           <text>false</text>
         </inputEntry>
         <inputEntry id="InputEntry_2_DelegateTo">
           <text>-</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1ux8han">
+          <text>"hr-review"</text>
         </inputEntry>
         <outputEntry id="OutputEntry_2">
           <text>defaultAssignee</text>
@@ -54,6 +65,9 @@
           <text></text>
         </inputEntry>
         <inputEntry id="UnaryTests_0yjaczh">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_1u4v2v9">
           <text></text>
         </inputEntry>
         <outputEntry id="LiteralExpression_19pt84w">

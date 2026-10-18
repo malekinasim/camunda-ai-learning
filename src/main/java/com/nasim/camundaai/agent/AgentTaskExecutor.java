@@ -10,7 +10,8 @@ import java.util.Map;
  * a wrong result would be completed.
  */
 public interface AgentTaskExecutor {
+    boolean supports(String taskType);
     Map<String, Object> execute(AgentTask task) throws Exception;
 
-    void completeTask(TasklistTask task,String assignee);
+    void completeTask(AgentTask task,String assignee);
 }
