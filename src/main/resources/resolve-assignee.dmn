@@ -40,6 +40,23 @@
           <text>delegateTo</text>
         </outputEntry>
       </rule>
+       <rule id="DecisionRule_1usd3kk">
+              <inputEntry id="UnaryTests_0ycz7k0">
+                <text></text>
+              </inputEntry>
+              <inputEntry id="UnaryTests_0n7bajt">
+                <text>true</text>
+              </inputEntry>
+              <inputEntry id="UnaryTests_0jrysvs">
+                <text></text>
+              </inputEntry>
+              <inputEntry id="UnaryTests_10akgnd">
+                <text>"ALL"</text>
+              </inputEntry>
+              <outputEntry id="LiteralExpression_0to6uk1">
+                <text>delegateTo</text>
+              </outputEntry>
+            </rule>
       <rule id="Rule_NotDelegated">
         <inputEntry id="InputEntry_2_Default">
           <text>-</text>
@@ -57,23 +74,7 @@
           <text>defaultAssignee</text>
         </outputEntry>
       </rule>
-      <rule id="DecisionRule_1usd3kk">
-        <inputEntry id="UnaryTests_0ycz7k0">
-          <text>"َALL"</text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_0n7bajt">
-          <text>true</text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_0jrysvs">
-          <text></text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_10akgnd">
-          <text>"hr-review"</text>
-        </inputEntry>
-        <outputEntry id="LiteralExpression_0to6uk1">
-          <text>delegateTo</text>
-        </outputEntry>
-      </rule>
+
     </decisionTable>
   </decision>
   <dmndi:DMNDI>
