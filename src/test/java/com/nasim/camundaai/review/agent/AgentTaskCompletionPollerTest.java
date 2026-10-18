@@ -1,6 +1,7 @@
 package com.nasim.camundaai.review.agent;
 
 import com.nasim.camundaai.agent.AgentTaskCompletionPoller;
+import com.nasim.camundaai.agent.AgentTaskExecutors;
 import com.nasim.camundaai.agent.ResumeScoringExecutor;
 import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.ai.ClaudeScoringService;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -93,6 +95,7 @@ class AgentTaskCompletionPollerTest {
                                              ClaudeScoringService scoring) {
         var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
                 "agent-bot", "test-password");
-        return new AgentTaskCompletionPoller(tasklist, new ResumeScoringExecutor(scoring,repository));
+        return new AgentTaskCompletionPoller(tasklist,
+                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, repository))));
     }
 }

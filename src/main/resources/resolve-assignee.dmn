@@ -57,23 +57,6 @@
           <text>defaultAssignee</text>
         </outputEntry>
       </rule>
-      <rule id="DecisionRule_0ybho7y">
-        <inputEntry id="UnaryTests_1wdvbxj">
-          <text></text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_1w029w8">
-          <text></text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_0yjaczh">
-          <text></text>
-        </inputEntry>
-        <inputEntry id="UnaryTests_1u4v2v9">
-          <text></text>
-        </inputEntry>
-        <outputEntry id="LiteralExpression_19pt84w">
-          <text></text>
-        </outputEntry>
-      </rule>
     </decisionTable>
   </decision>
   <dmndi:DMNDI>

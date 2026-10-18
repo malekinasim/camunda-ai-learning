@@ -62,10 +62,9 @@ public class AgentTaskCompletionPoller {
 
         tasklist.completeTask(task.id(), variableResult);
         log.info("agent-bot completed task -first step{}", task.id());
-        if (!(boolean) variableResult.get("isComplete")) {
-            TasklistTask current = tasklist.getTask(task.id());
-            agentTaskExecutor.get().completeTask(new AgentTask(current.id(), current.taskState(), current.assignee(), current.processInstanceKey(), current.taskDefinitionId()), AGENT_ASSIGNEE);
 
-        }
+        TasklistTask current = tasklist.getTask(task.id());
+        agentTaskExecutor.get().completeTask(new AgentTask(current.id(), current.taskState(), current.assignee(), current.processInstanceKey(), current.taskDefinitionId()), AGENT_ASSIGNEE);
+
     }
 }

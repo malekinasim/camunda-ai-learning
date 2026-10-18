@@ -26,8 +26,8 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
     }
 
     @Override
-    public boolean supports(String taskType) {
-        return taskType.equals(Task_HR_REVIEW_DEFINITION_ID);
+    public boolean supports(String taskDefinitionId) {
+        return taskDefinitionId.equals(Task_HR_REVIEW_DEFINITION_ID);
     }
 
     @Override
@@ -37,7 +37,8 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
                         "No ResumeReview found for process instance " + task.processInstanceKey()));
 
 
-        if (task.id().equals(review.getAgentTaskId()) && !review.isAgentCompletionConfirmed()) {
+        if (!task.id().equals(review.getAgentTaskId()) &&
+                !review.isAgentCompletionConfirmed()) {
 
             ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
                     review.getResume().getResumeText(), review.getJob().getDescription());
@@ -51,10 +52,9 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         }
 
         Map<String, Object> variables = new LinkedHashMap<>();
-        variables.put("matchScore", review.getMatchScore());
+        variables.put("matchScore", review.getMatchScore().intValue());
         variables.put("verdict", review.getVerdict());
         variables.put("reason", review.getReason());
-        variables.put("isComplete", review.isAgentCompletionConfirmed());
         return variables;
     }
     @Override

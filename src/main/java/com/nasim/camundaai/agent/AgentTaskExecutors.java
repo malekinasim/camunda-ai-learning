@@ -9,7 +9,7 @@ import java.util.Optional;
 public class AgentTaskExecutors {               // Spring injects every AgentTaskExecutor bean
     private final List<AgentTaskExecutor> all;
     public AgentTaskExecutors(List<AgentTaskExecutor> all) { this.all = all; }
-    public Optional<AgentTaskExecutor> forType(String taskType) {
-        return all.stream().filter(e -> e.supports(taskType)).findFirst();
+    public Optional<AgentTaskExecutor> forType(String taskDefinitionId) {
+        return all.stream().filter(e -> e.supports(taskDefinitionId)).findFirst();
     }
 }
