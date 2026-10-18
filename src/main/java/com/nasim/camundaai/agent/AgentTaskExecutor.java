@@ -1,5 +1,7 @@
 package com.nasim.camundaai.agent;
 
+import com.nasim.camundaai.agent.tasklist.TasklistTask;
+
 import java.util.Map;
 
 /**
@@ -8,5 +10,7 @@ import java.util.Map;
  * a wrong result would be completed.
  */
 public interface AgentTaskExecutor {
-    Map<String, Object> execute(AgentTask task,Map<String,Object> attributes) throws Exception;
+    Map<String, Object> execute(AgentTask task) throws Exception;
+
+    void completeTask(TasklistTask task,String assignee);
 }

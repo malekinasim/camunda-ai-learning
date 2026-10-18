@@ -22,5 +22,16 @@ public interface TaskDelegationRepository extends JpaRepository<TaskDelegation, 
             @Param("taskType") String taskType,
             @Param("today") LocalDate today);
 
+
+    @Query("""
+            select d from TaskDelegation d
+            where d.delegateTo=:delegateTo
+              and d.startDate <= :today
+              and (d.endDate is null or d.endDate >= :today)
+            """)
+    List<TaskDelegation> findActiveDelegationsByDelegateTo(
+            @Param("delegateTo") String delegateTo,
+            @Param("today") LocalDate today);
+
     List<TaskDelegation> findAllByOrderByStartDateDesc();
 }

@@ -16,17 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Generic start execution listener for any user task that supports delegation.
- *
- * The task itself declares who it belongs to, through input mappings in the BPMN:
- *   taskType        - business type of the task, matched against delegation rules
- *   delegatorRole   - role that normally owns the task and may delegate it
- *   defaultAssignee - who gets the task when no delegation is active
- *
- * Nothing about a specific process lives in this class, so a new user task only
- * needs the three inputs and this listener in the modeler - no new Java code.
- */
 @Component
 public class ResolveAssigneeListener {
 
@@ -47,8 +36,7 @@ public class ResolveAssigneeListener {
                                                @Variable String taskType,
                                                @Variable String delegatorRole,
                                                @Variable String defaultAssignee) throws Exception {
-        // ActivatedJob tells us which element triggered the listener. We only use it
-        // for error messages: routing is driven by the declared inputs, not by the id.
+
         String where = job.getBpmnProcessId() + "/" + job.getElementId();
         requireDeclared("taskType", taskType, where);
         requireDeclared("delegatorRole", delegatorRole, where);
@@ -57,13 +45,14 @@ public class ResolveAssigneeListener {
         Optional<TaskDelegation> activeDelegation = selectDelegation(taskType,
                 repository.findActiveDelegations(delegatorRole, taskType, LocalDate.now()));
 
+        //TODO we should think about DMN generality more that cover all forms of assignee
         Map<String, Object> decisionInput = new HashMap<>();
         decisionInput.put("defaultAssignee", defaultAssignee);
         decisionInput.put("hasActiveDelegation", activeDelegation.isPresent());
         decisionInput.put("delegateTo", activeDelegation.map(TaskDelegation::getDelegateTo).orElse(""));
 
         EvaluateDecisionResponse decision = zeebeClient.newEvaluateDecisionCommand()
-                .decisionId("resolve-assignee")
+                .decisionId("resolve-assignee_"+taskType)
                 .variables(mapper.writeValueAsString(decisionInput))
                 .send()
                 .join();
@@ -75,10 +64,6 @@ public class ResolveAssigneeListener {
         return output;
     }
 
-    /**
-     * Fails loudly when a task uses this listener without declaring an input.
-     * Falling back to a default would silently send the task to the wrong person.
-     */
     static void requireDeclared(String name, String value, String where) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("User task " + where + " uses the '" + JOB_TYPE
@@ -86,14 +71,11 @@ public class ResolveAssigneeListener {
         }
     }
 
-    /**
-     * A rule for this exact task type wins over general rules (taskType null or 'ALL').
-     * Two rules at the same level are a configuration error, not something to guess about.
-     */
     static Optional<TaskDelegation> selectDelegation(String taskType, List<TaskDelegation> candidates) {
         List<TaskDelegation> specific = candidates.stream()
                 .filter(d -> taskType.equals(d.getTaskType())).toList();
         List<TaskDelegation> selected = specific.isEmpty() ? candidates : specific;
+        //TODO  we can manage this conflict of delegate better maybe they are overlap not conflict and we can replace them by their union of them
         if (selected.size() > 1) {
             throw new IllegalStateException("Overlapping active delegation rules at the same priority for task type '"
                     + taskType + "'");

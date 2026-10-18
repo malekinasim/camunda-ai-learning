@@ -51,13 +51,8 @@ public class TasklistClient {
         return username;
     }
 
-    public List<TasklistTask> searchTasks(String assignee, String state, String taskDefinitionId) throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-                "assignee", assignee,
-                "state", state,
-                "taskDefinitionId", taskDefinitionId,
-                "pageSize", 100
-        ));
+    public List<TasklistTask> searchTasks(Map<String,Object> searchMap) throws Exception {
+        String body = objectMapper.writeValueAsString(searchMap);
         HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
                 .uri(URI.create(baseUrl + "/v1/tasks/search"))
                 .header("Content-Type", "application/json")
@@ -81,10 +76,6 @@ public class TasklistClient {
     }
 
     public void completeTask(String taskId, Map<String, Object> variables) throws Exception {
-        // Tasklist expects each variable's "value" as a JSON-encoded string:
-        // "82" for a number, "\"APPROVED\"" (quotes included) for a string.
-        // Reusing Jackson to encode each value keeps this correct regardless
-        // of type, instead of hand-building quotes and getting it wrong.
         List<Map<String, String>> encoded = new ArrayList<>();
         for (Map.Entry<String, Object> variable : variables.entrySet()) {
             encoded.add(Map.of("name", variable.getKey(),
