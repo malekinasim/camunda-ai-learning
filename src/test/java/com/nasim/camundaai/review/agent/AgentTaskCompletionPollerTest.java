@@ -1,5 +1,9 @@
 package com.nasim.camundaai.review.agent;
 
+import com.nasim.camundaai.agent.AgentTaskCompletionPoller;
+import com.nasim.camundaai.agent.AgentTaskExecutors;
+import com.nasim.camundaai.agent.ResumeScoringExecutor;
+import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.ai.ClaudeScoringService;
 import com.nasim.camundaai.review.entity.Job;
 import com.nasim.camundaai.review.entity.Resume;
@@ -10,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,18 +84,18 @@ class AgentTaskCompletionPollerTest {
             verify(scoring, times(1)).evaluateMatch("resume", "job");
             assertEquals(2, completions.get());
             assertTrue(review.isAgentCompletionConfirmed());
-            assertTrue(searchBody.get().contains("Task_HrReview"));
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
         } finally { server.stop(0); }
     }
 
+
+
     private AgentTaskCompletionPoller poller(HttpServer server, ResumeReviewRepository repository,
-                                              ClaudeScoringService scoring) {
-        var poller = new AgentTaskCompletionPoller(repository, scoring);
-        ReflectionTestUtils.setField(poller, "tasklistBaseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
-        ReflectionTestUtils.setField(poller, "tasklistUsername", "agent-bot");
-        ReflectionTestUtils.setField(poller, "tasklistPassword", "test-password");
-        return poller;
+                                             ClaudeScoringService scoring) {
+        var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
+                "agent-bot", "test-password");
+        return new AgentTaskCompletionPoller(tasklist,
+                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, repository))));
     }
 }

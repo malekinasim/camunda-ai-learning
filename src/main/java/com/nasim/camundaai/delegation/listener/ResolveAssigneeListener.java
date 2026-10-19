@@ -4,22 +4,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nasim.camundaai.delegation.entity.TaskDelegation;
 import com.nasim.camundaai.delegation.repository.TaskDelegationRepository;
 import io.camunda.zeebe.client.ZeebeClient;
+import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.response.EvaluateDecisionResponse;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;
+import io.camunda.zeebe.spring.client.annotation.Variable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.List;
 
 @Component
 public class ResolveAssigneeListener {
 
-    private static final String DELEGATOR_ROLE = "HR_EMPLOYEE";
-    private static final String TASK_TYPE = "hr-review";
-    private static final String DEFAULT_ASSIGNEE = "hr-employee";
+    static final String JOB_TYPE = "resolve-assignee";
+    static final List<String> REQUIRED_INPUTS = List.of("taskType", "delegatorRole", "defaultAssignee");
 
     private final TaskDelegationRepository repository;
     private final ZeebeClient zeebeClient;
@@ -30,15 +31,25 @@ public class ResolveAssigneeListener {
         this.zeebeClient = zeebeClient;
     }
 
-    @JobWorker(type = "resolve-hr-assignee")
-    public Map<String, Object> resolveAssignee() throws Exception {
+    @JobWorker(type = JOB_TYPE)
+    public Map<String, Object> resolveAssignee(ActivatedJob job,
+                                               @Variable String taskType,
+                                               @Variable String delegatorRole,
+                                               @Variable String defaultAssignee) throws Exception {
 
-        Optional<TaskDelegation> activeDelegation =
-                selectDelegation(repository.findActiveDelegations(DELEGATOR_ROLE, TASK_TYPE, LocalDate.now()));
+        String where = job.getBpmnProcessId() + "/" + job.getElementId();
+        requireDeclared("taskType", taskType, where);
+        requireDeclared("delegatorRole", delegatorRole, where);
+        requireDeclared("defaultAssignee", defaultAssignee, where);
 
+        Optional<TaskDelegation> activeDelegation = selectDelegation(taskType,
+                repository.findActiveDelegations(delegatorRole, taskType, LocalDate.now()));
+
+        //TODO we should think about DMN generality more that cover all forms of assignee
         Map<String, Object> decisionInput = new HashMap<>();
-        decisionInput.put("defaultAssignee", DEFAULT_ASSIGNEE);
+        decisionInput.put("defaultAssignee", defaultAssignee);
         decisionInput.put("hasActiveDelegation", activeDelegation.isPresent());
+        decisionInput.put("taskType", decisionTaskType(activeDelegation));
         decisionInput.put("delegateTo", activeDelegation.map(TaskDelegation::getDelegateTo).orElse(""));
 
         EvaluateDecisionResponse decision = zeebeClient.newEvaluateDecisionCommand()
@@ -53,12 +64,29 @@ public class ResolveAssigneeListener {
         output.put("finalAssignee", finalAssignee);
         return output;
     }
-    static Optional<TaskDelegation> selectDelegation(List<TaskDelegation> candidates) {
+
+    /** A general delegation may store taskType as null or "ALL"; the DMN only knows "ALL". */
+    static String decisionTaskType(Optional<TaskDelegation> delegation) {
+        return delegation
+                .map(d -> d.getTaskType() == null ? "ALL" : d.getTaskType())
+                .orElse("");
+    }
+
+    static void requireDeclared(String name, String value, String where) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("User task " + where + " uses the '" + JOB_TYPE
+                    + "' listener but does not declare input '" + name + "'");
+        }
+    }
+
+    static Optional<TaskDelegation> selectDelegation(String taskType, List<TaskDelegation> candidates) {
         List<TaskDelegation> specific = candidates.stream()
-                .filter(d -> TASK_TYPE.equals(d.getTaskType())).toList();
+                .filter(d -> taskType.equals(d.getTaskType())).toList();
         List<TaskDelegation> selected = specific.isEmpty() ? candidates : specific;
+        //TODO  we can manage this conflict of delegate better maybe they are overlap not conflict and we can replace them by their union of them
         if (selected.size() > 1) {
-            throw new IllegalStateException("Overlapping active delegation rules at the same priority");
+            throw new IllegalStateException("Overlapping active delegation rules at the same priority for task type '"
+                    + taskType + "'");
         }
         Optional<TaskDelegation> result = selected.stream().findFirst();
         if (result.isPresent() && (result.get().getDelegateTo() == null
