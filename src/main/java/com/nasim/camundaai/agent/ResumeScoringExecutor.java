@@ -31,7 +31,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
     }
 
     @Override
-    public Map<String, Object> execute(AgentTask task) throws Exception {
+    public AgentTaskResult execute(AgentTask task) throws Exception {
     ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(task.processInstanceKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReview found for process instance " + task.processInstanceKey()));
@@ -47,7 +47,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
             review.setReason(result.reason());
             review.setAgentTaskId(task.id());
             review.setAgentCompletionConfirmed(false);
-            resumeReviewRepository.save(review);
+            review= resumeReviewRepository.save(review);
 
         }
 
@@ -55,8 +55,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         variables.put("matchScore", review.getMatchScore().intValue());
         variables.put("verdict", review.getVerdict());
         variables.put("reason", review.getReason());
-        variables.put("isComplete", review.isAgentCompletionConfirmed());
-        return variables;
+        return new AgentTaskResult(variables,review.isAgentCompletionConfirmed());
     }
     @Override
     public void completeTask(AgentTask current,String assignee) {

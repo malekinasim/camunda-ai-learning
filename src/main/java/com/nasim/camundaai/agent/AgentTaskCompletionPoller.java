@@ -57,9 +57,9 @@ public class AgentTaskCompletionPoller {
             throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + "is not for this executor");
 
 
-        Map<String, Object> result = agentTaskExecutor.get().execute(toAgentTask(task));
+        AgentTaskResult result = agentTaskExecutor.get().execute(toAgentTask(task));
 
-        boolean alreadyDone = (boolean) result.remove("isComplete");   // not a process variable
+        boolean alreadyDone = result.alreadyCompleted();   // not a process variable
         if (alreadyDone) return;                       // we completed it earlier; search index may lag
 
         TasklistTask current = tasklist.getTask(task.id());
@@ -67,7 +67,7 @@ public class AgentTaskCompletionPoller {
             agentTaskExecutor.get().completeTask(toAgentTask(current), AGENT_ASSIGNEE);
             return;
         }
-        tasklist.completeTask(task.id(), result);
+        tasklist.completeTask(task.id(), result.variables());
         agentTaskExecutor.get().completeTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
 
     }

@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public interface AgentTaskExecutor {
     boolean supports(String taskType);
-    Map<String, Object> execute(AgentTask task) throws Exception;
+    AgentTaskResult execute(AgentTask task) throws Exception;
 
     void completeTask(AgentTask task,String assignee);
 }

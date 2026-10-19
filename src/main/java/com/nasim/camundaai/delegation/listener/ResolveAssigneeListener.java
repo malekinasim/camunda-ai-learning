@@ -49,7 +49,9 @@ public class ResolveAssigneeListener {
         Map<String, Object> decisionInput = new HashMap<>();
         decisionInput.put("defaultAssignee", defaultAssignee);
         decisionInput.put("hasActiveDelegation", activeDelegation.isPresent());
-        decisionInput.put("taskType", activeDelegation.map(TaskDelegation::getTaskType).orElse(""));
+        decisionInput.put("taskType", activeDelegation
+                .map(d -> d.getTaskType() == null ? "ALL" : d.getTaskType())
+                .orElse(""));
         decisionInput.put("delegateTo", activeDelegation.map(TaskDelegation::getDelegateTo).orElse(""));
 
         EvaluateDecisionResponse decision = zeebeClient.newEvaluateDecisionCommand()
