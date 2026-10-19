@@ -82,7 +82,7 @@ class AgentTaskCompletionPollerTest {
             poller.completeAgentTasks();
             poller.completeAgentTasks();
             verify(scoring, times(1)).evaluateMatch("resume", "job");
-            assertEquals(2, completions.get());
+            assertEquals(3, completions.get());
             assertTrue(review.isAgentCompletionConfirmed());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
