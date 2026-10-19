@@ -49,9 +49,7 @@ public class ResolveAssigneeListener {
         Map<String, Object> decisionInput = new HashMap<>();
         decisionInput.put("defaultAssignee", defaultAssignee);
         decisionInput.put("hasActiveDelegation", activeDelegation.isPresent());
-        decisionInput.put("taskType", activeDelegation
-                .map(d -> d.getTaskType() == null ? "ALL" : d.getTaskType())
-                .orElse(""));
+        decisionInput.put("taskType", decisionTaskType(activeDelegation));
         decisionInput.put("delegateTo", activeDelegation.map(TaskDelegation::getDelegateTo).orElse(""));
 
         EvaluateDecisionResponse decision = zeebeClient.newEvaluateDecisionCommand()
@@ -65,6 +63,13 @@ public class ResolveAssigneeListener {
         Map<String, Object> output = new HashMap<>();
         output.put("finalAssignee", finalAssignee);
         return output;
+    }
+
+    /** A general delegation may store taskType as null or "ALL"; the DMN only knows "ALL". */
+    static String decisionTaskType(Optional<TaskDelegation> delegation) {
+        return delegation
+                .map(d -> d.getTaskType() == null ? "ALL" : d.getTaskType())
+                .orElse("");
     }
 
     static void requireDeclared(String name, String value, String where) {
