@@ -28,7 +28,7 @@ Changing a database delegation record affects subsequent assignment evaluations 
 
 For each task it loads the linked `ResumeReview`, scores its resume against the job description, and saves the decision before attempting completion. The saved task ID lets later attempts reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 
-Before completion, the worker reads task state and assignment again. Unknown outcomes remain available for later checks; this is not a transaction across Tasklist and PostgreSQL. The current implementation is intended for **one application instance**. It does not provide distributed leases or exactly-once execution.
+Before completion, the worker reads the task again. It completes the task only if it is still CREATED and assigned to agent-bot; otherwise it logs the reason and skips it, and the saved result is not applied. If the task is already completed, it is recorded as the agent’s completion only when agent-bot is still the assignee.
 
 ### Output contract
 
