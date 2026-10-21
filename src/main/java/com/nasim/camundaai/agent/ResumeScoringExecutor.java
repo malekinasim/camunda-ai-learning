@@ -58,7 +58,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         return new AgentTaskResult(variables,review.isAgentCompletionConfirmed());
     }
     @Override
-    public void completeTask(AgentTask current,String assignee) {
+    public void markAsAgentCompleteTask(AgentTask current, String assignee) {
         ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(current.processInstanceKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReview found for process instance " + current.processInstanceKey()));

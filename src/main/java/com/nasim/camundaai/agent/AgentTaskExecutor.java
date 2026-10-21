@@ -1,9 +1,5 @@
 package com.nasim.camundaai.agent;
 
-import com.nasim.camundaai.agent.tasklist.TasklistTask;
-
-import java.util.Map;
-
 /**
  * Does the work of an agent task and returns the variables to complete it with.
  * Must throw if it cannot produce a valid result: a failed attempt is retried,
@@ -13,5 +9,5 @@ public interface AgentTaskExecutor {
     boolean supports(String taskType);
     AgentTaskResult execute(AgentTask task) throws Exception;
 
-    void completeTask(AgentTask task,String assignee);
+    void markAsAgentCompleteTask(AgentTask task, String assignee);
 }
