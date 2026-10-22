@@ -9,16 +9,16 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
-@Table(name = "resume_review",
+@Table(name = "resume_review_request",
         uniqueConstraints = {@UniqueConstraint(name = "uk_process_instance_key", columnNames = {"processInstanceKey"})})
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
-public class ResumeReview {
-
+public class ResumeReviewRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -33,25 +33,13 @@ public class ResumeReview {
 
     private Long processInstanceKey;
 
-    private Double matchScore;
-
-    private String verdict;
-
-    @Column(columnDefinition = "text")
-    private String reason;
-
-    // Saved before completion so retries reuse the same model decision.
-    private String agentTaskId;
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean agentCompletionConfirmed;
-
     @CreatedDate
     private LocalDateTime createdDate;
 
     @LastModifiedDate
     private LocalDateTime lastModifiedDate;
 
-    public ResumeReview(Job job, Resume resume, Long processInstanceKey) {
+    public ResumeReviewRequest(Job job, Resume resume, Long processInstanceKey) {
         this.job = job;
         this.resume = resume;
         this.processInstanceKey = processInstanceKey;
