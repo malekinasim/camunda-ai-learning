@@ -8,6 +8,8 @@ import com.nasim.camundaai.ai.ClaudeScoringService;
 import com.nasim.camundaai.review.entity.*;
 import com.nasim.camundaai.review.repository.ResumeReviewAttemptRepository;
 import com.nasim.camundaai.review.repository.ResumeReviewRequestRepository;
+import com.nasim.camundaai.review.service.ResumeReviewAttemptService;
+import com.nasim.camundaai.review.service.ResumeReviewRequestService;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
@@ -102,6 +104,8 @@ class AgentTaskCompletionPollerTest {
         var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
                 "agent-bot", "test-password");
         return new AgentTaskCompletionPoller(tasklist,
-                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, requestRepository,reviewAttemptRepository))));
+                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring,
+                        new ResumeReviewRequestService(requestRepository),
+                        new ResumeReviewAttemptService(reviewAttemptRepository)))));
     }
 }
