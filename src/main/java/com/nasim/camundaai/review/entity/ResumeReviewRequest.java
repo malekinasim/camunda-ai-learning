@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -37,7 +38,7 @@ public class ResumeReviewRequest {
     @OneToMany(targetEntity = ResumeReviewAttempt.class,
             fetch = FetchType.LAZY , orphanRemoval = true,
             mappedBy = "resumeReviewRequest")
-    private Set<ResumeReviewAttempt> resumeReviewAttempts;
+    private Set<ResumeReviewAttempt> resumeReviewAttempts = new HashSet<>();
 
     private Long processInstanceKey;
 
@@ -48,7 +49,7 @@ public class ResumeReviewRequest {
     private RequestStatus status;
 
     @ManyToOne
-    @JoinColumn(name = "final-review-id")
+    @JoinColumn(name = "final_review_id")
     private ResumeReviewAttempt finalReviewAttempt;
 
     @LastModifiedDate
