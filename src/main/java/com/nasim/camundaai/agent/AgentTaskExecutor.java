@@ -10,4 +10,7 @@ public interface AgentTaskExecutor {
     AgentTaskResult execute(AgentTask task) throws Exception;
 
     void markAsAgentCompleteTask(AgentTask task, String assignee);
+
+    /** The agent's result was not applied (task completed by someone else, reassigned, cancelled or failed). */
+    void markAsWithdrawn(AgentTask task, String assignee);
 }

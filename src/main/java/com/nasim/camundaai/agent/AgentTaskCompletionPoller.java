@@ -60,16 +60,19 @@ public class AgentTaskCompletionPoller {
             if(AGENT_ASSIGNEE.equals(current.assignee()) )
                 // agent completed it earlier but missed the confirmed
                 agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(current), AGENT_ASSIGNEE);
-            else
+            else {
                 // a person completed it while the agent was working; the agent's result is not applied
                 log.info("Task {} was completed by {}, not by {}; agent result not applied",
                         current.id(), current.assignee(), AGENT_ASSIGNEE);
+                agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
+            }
             return;
         }
         if (!TaskState.CREATED.name().equals(current.taskState()) || !AGENT_ASSIGNEE.equals(current.assignee())) {
             //task state change before confirm agent decision or task state is canceled
             log.info("Skipping task {}: state={}, assignee={}",
                     current.id(), current.taskState(), current.assignee());
+            agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
             return;
         }
         tasklist.completeTask(task.id(), result.variables());
