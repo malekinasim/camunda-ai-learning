@@ -5,13 +5,11 @@ import com.nasim.camundaai.agent.AgentTaskExecutors;
 import com.nasim.camundaai.agent.ResumeScoringExecutor;
 import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.ai.ClaudeScoringService;
-import com.nasim.camundaai.review.entity.Job;
-import com.nasim.camundaai.review.entity.Resume;
-import com.nasim.camundaai.review.entity.ResumeReview;
-import com.nasim.camundaai.review.repository.ResumeReviewRepository;
+import com.nasim.camundaai.review.entity.*;
+import com.nasim.camundaai.review.repository.ResumeReviewAttemptRepository;
+import com.nasim.camundaai.review.repository.ResumeReviewRequestRepository;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -34,7 +32,8 @@ class AgentTaskCompletionPollerTest {
         });
         server.start();
         try {
-            var poller = poller(server, mock(ResumeReviewRepository.class), mock(ClaudeScoringService.class));
+            var poller = poller(server, mock(ResumeReviewRequestRepository.class),mock(ResumeReviewAttemptRepository.class),
+                    mock(ClaudeScoringService.class));
             poller.completeAgentTasks();
             assertEquals(2, logins.get());
             assertEquals(2, searches.get());
@@ -42,14 +41,20 @@ class AgentTaskCompletionPollerTest {
     }
 
     @Test void reusesSavedDecisionAfterCompletionFailureAndSkipsStaleSearchResults() throws Exception {
-        var repository = mock(ResumeReviewRepository.class);
+        var requestRepository = mock(ResumeReviewRequestRepository.class);
+        var attemptRepository = mock(ResumeReviewAttemptRepository.class);
         var scoring = mock(ClaudeScoringService.class);
         var job = mock(Job.class);
         var resume = mock(Resume.class);
         when(job.getDescription()).thenReturn("job");
         when(resume.getResumeText()).thenReturn("resume");
-        var review = new ResumeReview(job, resume, 123L);
-        when(repository.findByProcessInstanceKey(123L)).thenReturn(Optional.of(review));
+        var reviewRequest = new ResumeReviewRequest(job, resume, 123L);
+        when(requestRepository.findByProcessInstanceKey(123L)).thenReturn(Optional.of(reviewRequest));
+        var reviewAttempt= new ResumeReviewAttempt("456","Meets requirements","APPROVED",  82.0,
+                "agent-bot",reviewRequest);
+        when(attemptRepository.findByTaskIdAndReviewer("456","agent-bot")).thenReturn(Optional.empty()
+        ,Optional.of(reviewAttempt));
+
         when(scoring.evaluateMatch("resume", "job"))
                 .thenReturn(new ClaudeScoringService.ScoreResult(82, "APPROVED", "Meets requirements"));
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -73,17 +78,17 @@ class AgentTaskCompletionPollerTest {
         });
         server.start();
         try {
-            var poller = poller(server, repository, scoring);
+            var poller = poller(server, requestRepository, attemptRepository,scoring);
             poller.completeAgentTasks();
-            assertFalse(review.isAgentCompletionConfirmed());
-            assertEquals("456", review.getAgentTaskId());
+            assertFalse(reviewAttempt.isAgentCompletionConfirmed());
+            assertEquals("456", reviewAttempt.getTaskId());
             // A new poller represents a restart; the decision is held in the saved row.
-            poller = poller(server, repository, scoring);
+            poller = poller(server, requestRepository,attemptRepository, scoring);
             poller.completeAgentTasks();
             poller.completeAgentTasks();
             verify(scoring, times(1)).evaluateMatch("resume", "job");
             assertEquals(2, completions.get());
-            assertTrue(review.isAgentCompletionConfirmed());
+            assertTrue(reviewAttempt.isAgentCompletionConfirmed());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
         } finally { server.stop(0); }
@@ -91,11 +96,12 @@ class AgentTaskCompletionPollerTest {
 
 
 
-    private AgentTaskCompletionPoller poller(HttpServer server, ResumeReviewRepository repository,
+    private AgentTaskCompletionPoller poller(HttpServer server, ResumeReviewRequestRepository requestRepository,
+                                             ResumeReviewAttemptRepository reviewAttemptRepository,
                                              ClaudeScoringService scoring) {
         var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
                 "agent-bot", "test-password");
         return new AgentTaskCompletionPoller(tasklist,
-                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, repository))));
+                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, requestRepository,reviewAttemptRepository))));
     }
 }
