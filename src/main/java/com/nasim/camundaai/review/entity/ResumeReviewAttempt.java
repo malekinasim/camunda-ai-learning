@@ -9,11 +9,10 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "review_attempt",
-        uniqueConstraints = {@UniqueConstraint(name = "uk_reviewer_task_id", columnNames = {"agentTaskId","reviewer"})})
+        uniqueConstraints = {@UniqueConstraint(name = "uk_reviewer_task_id", columnNames = {"taskId","reviewer"})})
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
@@ -40,23 +39,29 @@ public class ResumeReviewAttempt {
 
     private String reviewer;
 
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean agentCompletionConfirmed;
-
     @CreatedDate
     private LocalDateTime createdDate;
 
     @LastModifiedDate
     private LocalDateTime lastModifiedDate;
 
+    @Enumerated(EnumType.STRING)
+    private AttemptStatus status;
+
+    private LocalDateTime completedAt;
+
     public ResumeReviewAttempt(String taskId, String reason, String verdict, Double matchScore,
                                String reviewer,
-                               ResumeReviewRequest resumeReviewRequest) {
+                               ResumeReviewRequest resumeReviewRequest,AttemptStatus status) {
         this.taskId = taskId;
         this.reason = reason;
         this.verdict = verdict;
         this.matchScore = matchScore;
         this.reviewer = reviewer;
         this.resumeReviewRequest = resumeReviewRequest;
+        this.status=status;
+    }
+    public  enum AttemptStatus{
+        RESULT_SAVED, WITHDRAW,COMPLETED
     }
 }

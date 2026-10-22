@@ -48,12 +48,12 @@ class AgentTaskCompletionPollerTest {
         var resume = mock(Resume.class);
         when(job.getDescription()).thenReturn("job");
         when(resume.getResumeText()).thenReturn("resume");
-        var reviewRequest = new ResumeReviewRequest(job, resume, 123L);
+        var reviewRequest = new ResumeReviewRequest(job, resume, 123L,ResumeReviewRequest.RequestStatus.OPEN);
         when(requestRepository.findByProcessInstanceKey(123L)).thenReturn(Optional.of(reviewRequest));
-        var reviewAttempt= new ResumeReviewAttempt("456","Meets requirements","APPROVED",  82.0,
-                "agent-bot",reviewRequest);
-        when(attemptRepository.findByTaskIdAndReviewer("456","agent-bot")).thenReturn(Optional.empty()
-        ,Optional.of(reviewAttempt));
+        AtomicReference<ResumeReviewAttempt> saved = new AtomicReference<>();
+        when(attemptRepository.save(any())).thenAnswer(inv -> { saved.set(inv.getArgument(0)); return inv.getArgument(0); });
+        when(attemptRepository.findByTaskIdAndReviewer("456", "agent-bot"))
+                .thenAnswer(inv -> Optional.ofNullable(saved.get()));
 
         when(scoring.evaluateMatch("resume", "job"))
                 .thenReturn(new ClaudeScoringService.ScoreResult(82, "APPROVED", "Meets requirements"));
@@ -80,15 +80,15 @@ class AgentTaskCompletionPollerTest {
         try {
             var poller = poller(server, requestRepository, attemptRepository,scoring);
             poller.completeAgentTasks();
-            assertFalse(reviewAttempt.isAgentCompletionConfirmed());
-            assertEquals("456", reviewAttempt.getTaskId());
+            assertNotEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED,saved.get().getStatus());
+            assertEquals("456", saved.get().getTaskId());
             // A new poller represents a restart; the decision is held in the saved row.
             poller = poller(server, requestRepository,attemptRepository, scoring);
             poller.completeAgentTasks();
             poller.completeAgentTasks();
             verify(scoring, times(1)).evaluateMatch("resume", "job");
             assertEquals(2, completions.get());
-            assertTrue(reviewAttempt.isAgentCompletionConfirmed());
+            assertEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED,saved.get().getStatus());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
         } finally { server.stop(0); }

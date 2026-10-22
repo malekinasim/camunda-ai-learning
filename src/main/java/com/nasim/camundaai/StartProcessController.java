@@ -65,7 +65,7 @@ public class StartProcessController {
                 .send()
                 .join();
 
-        resumeReviewRequestRepository.save(new ResumeReviewRequest(job, resume, event.getProcessInstanceKey()));
+        resumeReviewRequestRepository.save(new ResumeReviewRequest(job, resume, event.getProcessInstanceKey(),ResumeReviewRequest.RequestStatus.OPEN));
 
         return "Started process instance: " + event.getProcessInstanceKey();
     }

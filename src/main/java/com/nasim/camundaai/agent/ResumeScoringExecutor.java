@@ -7,6 +7,9 @@ import com.nasim.camundaai.review.repository.ResumeReviewRequestRepository;
 import com.nasim.camundaai.review.repository.ResumeReviewAttemptRepository;
 import org.springframework.stereotype.Component;
 
+import javax.xml.crypto.Data;
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +51,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
                     result.decision(),
                     (double) result.score(),
                     task.assignee(),
-                    resumeReviewRequest);
+                    resumeReviewRequest,ResumeReviewAttempt.AttemptStatus.RESULT_SAVED);
                 resumeReviewAttempt = resumeReviewAttemptRepository.save(resumeReviewAttempt);
 
         }else resumeReviewAttempt =reviewOpt.get();
@@ -57,7 +60,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         variables.put("matchScore", resumeReviewAttempt.getMatchScore().intValue());
         variables.put("verdict", resumeReviewAttempt.getVerdict());
         variables.put("reason", resumeReviewAttempt.getReason());
-        return new AgentTaskResult(variables, resumeReviewAttempt.isAgentCompletionConfirmed());
+        return new AgentTaskResult(variables, !ResumeReviewAttempt.AttemptStatus.RESULT_SAVED.equals(resumeReviewAttempt.getStatus()));
     }
     @Override
     public void markAsAgentCompleteTask(AgentTask current, String assignee) {
@@ -65,16 +68,41 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReviewAttempt found for task id " + current.id()));
 
-        if (TaskState.COMPLETED.name().equals(current.state())) {
-            reviewAttempt.setAgentCompletionConfirmed(true);
+        if (TaskState.COMPLETED.name().equals(current.state()) ) {
+            reviewAttempt.setCompletedAt(LocalDateTime.now());
+            if(assignee.equals(reviewAttempt.getReviewer()))
+               reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.COMPLETED);
+            else
+                reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.WITHDRAW);
             resumeReviewAttemptRepository.save(reviewAttempt);
             return;
         }
         if (!TaskState.CREATED.name().equals(current.state()) || !assignee.equals(current.assignee())) {
+            if(ResumeReviewAttempt.AttemptStatus.RESULT_SAVED.equals( reviewAttempt.getStatus())){
+                reviewAttempt.setCompletedAt(LocalDateTime.now());
+                reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.WITHDRAW);
+                resumeReviewAttemptRepository.save(reviewAttempt);
+            }
+
             return;
         }
-        reviewAttempt.setAgentCompletionConfirmed(true);
+        reviewAttempt.setCompletedAt(LocalDateTime.now());
+        reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.COMPLETED);
         resumeReviewAttemptRepository.save(reviewAttempt);
+
+
+       Optional<ResumeReviewRequest> resumeReviewRequest= resumeReviewRequestRepository.findByProcessInstanceKey(current.processInstanceKey());
+      if(resumeReviewRequest.isPresent() && !resumeReviewRequest.get().getResumeReviewAttempts().isEmpty()) {
+          Optional<ResumeReviewAttempt> finalAttempt = resumeReviewRequest.get().getResumeReviewAttempts().stream()
+                  .filter(r ->
+                          ResumeReviewAttempt.AttemptStatus.COMPLETED.equals(r.getStatus()))
+                  .max(Comparator.comparing(ResumeReviewAttempt::getCompletedAt));
+          if(finalAttempt.isPresent()) {
+              resumeReviewRequest.get().setFinalReviewAttempt(finalAttempt.get());
+              resumeReviewRequestRepository.save(resumeReviewRequest.get());
+          }
+      }
+
     }
 
 }

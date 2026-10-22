@@ -8,8 +8,10 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "resume_review_request",
@@ -31,17 +33,32 @@ public class ResumeReviewRequest {
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
+
+    @OneToMany(targetEntity = ResumeReviewAttempt.class, fetch = FetchType.LAZY)
+    private Set<ResumeReviewAttempt> resumeReviewAttempts;
+
     private Long processInstanceKey;
 
     @CreatedDate
     private LocalDateTime createdDate;
 
+    @Enumerated(EnumType.STRING)
+    private RequestStatus status;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "final-review-id")
+    private ResumeReviewAttempt finalReviewAttempt;
+
     @LastModifiedDate
     private LocalDateTime lastModifiedDate;
 
-    public ResumeReviewRequest(Job job, Resume resume, Long processInstanceKey) {
+    public ResumeReviewRequest(Job job, Resume resume, Long processInstanceKey,RequestStatus status) {
         this.job = job;
         this.resume = resume;
         this.processInstanceKey = processInstanceKey;
+        this.status=status;
+    }
+    public  enum RequestStatus{
+        OPEN,COMPLETED
     }
 }
