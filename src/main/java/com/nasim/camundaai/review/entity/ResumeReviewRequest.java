@@ -34,7 +34,9 @@ public class ResumeReviewRequest {
     private Resume resume;
 
 
-    @OneToMany(targetEntity = ResumeReviewAttempt.class, fetch = FetchType.LAZY)
+    @OneToMany(targetEntity = ResumeReviewAttempt.class,
+            fetch = FetchType.LAZY , orphanRemoval = true,
+            mappedBy = "resumeReviewRequest")
     private Set<ResumeReviewAttempt> resumeReviewAttempts;
 
     private Long processInstanceKey;
@@ -45,7 +47,7 @@ public class ResumeReviewRequest {
     @Enumerated(EnumType.STRING)
     private RequestStatus status;
 
-    @ManyToOne(optional = false)
+    @ManyToOne
     @JoinColumn(name = "final-review-id")
     private ResumeReviewAttempt finalReviewAttempt;
 

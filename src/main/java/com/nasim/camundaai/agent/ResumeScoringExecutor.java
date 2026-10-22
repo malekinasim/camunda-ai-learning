@@ -75,9 +75,9 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
             else
                 reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.WITHDRAW);
             resumeReviewAttemptRepository.save(reviewAttempt);
-            return;
+
         }
-        if (!TaskState.CREATED.name().equals(current.state()) || !assignee.equals(current.assignee())) {
+        else if (!TaskState.CREATED.name().equals(current.state()) || !assignee.equals(current.assignee())) {
             if(ResumeReviewAttempt.AttemptStatus.RESULT_SAVED.equals( reviewAttempt.getStatus())){
                 reviewAttempt.setCompletedAt(LocalDateTime.now());
                 reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.WITHDRAW);
@@ -85,10 +85,11 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
             }
 
             return;
+        }else {
+            reviewAttempt.setCompletedAt(LocalDateTime.now());
+            reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.COMPLETED);
+            resumeReviewAttemptRepository.save(reviewAttempt);
         }
-        reviewAttempt.setCompletedAt(LocalDateTime.now());
-        reviewAttempt.setStatus(ResumeReviewAttempt.AttemptStatus.COMPLETED);
-        resumeReviewAttemptRepository.save(reviewAttempt);
 
 
        Optional<ResumeReviewRequest> resumeReviewRequest= resumeReviewRequestRepository.findByProcessInstanceKey(current.processInstanceKey());
@@ -99,6 +100,7 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
                   .max(Comparator.comparing(ResumeReviewAttempt::getCompletedAt));
           if(finalAttempt.isPresent()) {
               resumeReviewRequest.get().setFinalReviewAttempt(finalAttempt.get());
+              resumeReviewRequest.get().setStatus(ResumeReviewRequest.RequestStatus.COMPLETED);
               resumeReviewRequestRepository.save(resumeReviewRequest.get());
           }
       }
