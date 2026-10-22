@@ -33,7 +33,7 @@ public class ResumeReviewAttemptService {
 
     /** The task was handed back to the same reviewer: make a withdrawn attempt usable again. */
     public ResumeReviewAttempt reactivateIfWithdrawn(ResumeReviewAttempt attempt) {
-        if (!AttemptStatus.WITHDRAW.equals(attempt.getStatus())) {
+        if (!AttemptStatus.WITHDRAWN.equals(attempt.getStatus())) {
             return attempt;
         }
         attempt.setStatus(AttemptStatus.RESULT_SAVED);
@@ -56,7 +56,7 @@ public class ResumeReviewAttemptService {
                 .filter(attempt -> AttemptStatus.RESULT_SAVED.equals(attempt.getStatus()))
                 .ifPresent(attempt -> {
                     attempt.setCompletedAt(LocalDateTime.now());
-                    attempt.setStatus(AttemptStatus.WITHDRAW);
+                    attempt.setStatus(AttemptStatus.WITHDRAWN);
                     resumeReviewAttemptRepository.save(attempt);
                 });
     }

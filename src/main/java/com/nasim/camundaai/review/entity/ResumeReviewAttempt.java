@@ -62,6 +62,6 @@ public class ResumeReviewAttempt {
         this.status=status;
     }
     public  enum AttemptStatus{
-        RESULT_SAVED, WITHDRAW,COMPLETED
+        RESULT_SAVED, WITHDRAWN,COMPLETED
     }
 }
