@@ -8,17 +8,20 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Entity
-@Table(name = "resume_review",
+@Table(name = "resume_review_request",
         uniqueConstraints = {@UniqueConstraint(name = "uk_process_instance_key", columnNames = {"processInstanceKey"})})
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
-public class ResumeReview {
-
+public class ResumeReviewRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -31,29 +34,34 @@ public class ResumeReview {
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
+
+    @OneToMany(targetEntity = ResumeReviewAttempt.class,
+            fetch = FetchType.LAZY ,
+            mappedBy = "resumeReviewRequest")
+    private Set<ResumeReviewAttempt> resumeReviewAttempts = new HashSet<>();
+
     private Long processInstanceKey;
-
-    private Double matchScore;
-
-    private String verdict;
-
-    @Column(columnDefinition = "text")
-    private String reason;
-
-    // Saved before completion so retries reuse the same model decision.
-    private String agentTaskId;
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean agentCompletionConfirmed;
 
     @CreatedDate
     private LocalDateTime createdDate;
 
+    @Enumerated(EnumType.STRING)
+    private RequestStatus status;
+
+    @ManyToOne
+    @JoinColumn(name = "final_review_id")
+    private ResumeReviewAttempt finalReviewAttempt;
+
     @LastModifiedDate
     private LocalDateTime lastModifiedDate;
 
-    public ResumeReview(Job job, Resume resume, Long processInstanceKey) {
+    public ResumeReviewRequest(Job job, Resume resume, Long processInstanceKey,RequestStatus status) {
         this.job = job;
         this.resume = resume;
         this.processInstanceKey = processInstanceKey;
+        this.status=status;
+    }
+    public  enum RequestStatus{
+        OPEN,COMPLETED
     }
 }

@@ -1,28 +1,31 @@
 package com.nasim.camundaai.agent;
 
-import com.nasim.camundaai.agent.AgentTask;
-import com.nasim.camundaai.agent.AgentTaskExecutor;
-import com.nasim.camundaai.agent.tasklist.TasklistTask;
 import com.nasim.camundaai.ai.ClaudeScoringService;
-import com.nasim.camundaai.review.entity.ResumeReview;
-import com.nasim.camundaai.review.repository.ResumeReviewRepository;
+import com.nasim.camundaai.review.entity.ResumeReviewAttempt;
+import com.nasim.camundaai.review.entity.ResumeReviewRequest;
+import com.nasim.camundaai.review.service.ResumeReviewAttemptService;
+import com.nasim.camundaai.review.service.ResumeReviewRequestService;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** Temporary executor: the scoring the poller did before, behind the interface. */
 @Component
 public class ResumeScoringExecutor implements AgentTaskExecutor {
 
-   private static final String Task_HR_REVIEW_DEFINITION_ID = "Task_HrReview";
+    private static final String Task_HR_REVIEW_DEFINITION_ID = "Task_HrReview";
     private final ClaudeScoringService claudeScoringService;
-    private final ResumeReviewRepository resumeReviewRepository;
+    private final ResumeReviewRequestService resumeReviewRequestService;
+    private final ResumeReviewAttemptService resumeReviewAttemptService;
 
-    public ResumeScoringExecutor(ClaudeScoringService claudeScoringService, ResumeReviewRepository resumeReviewRepository) {
+    public ResumeScoringExecutor(ClaudeScoringService claudeScoringService,
+                                 ResumeReviewRequestService resumeReviewRequestService,
+                                 ResumeReviewAttemptService resumeReviewAttemptService) {
         this.claudeScoringService = claudeScoringService;
-        this.resumeReviewRepository = resumeReviewRepository;
+        this.resumeReviewRequestService = resumeReviewRequestService;
+        this.resumeReviewAttemptService = resumeReviewAttemptService;
     }
 
     @Override
@@ -32,47 +35,41 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
 
     @Override
     public AgentTaskResult execute(AgentTask task) throws Exception {
-    ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(task.processInstanceKey())
-                .orElseThrow(() -> new IllegalStateException(
-                        "No ResumeReview found for process instance " + task.processInstanceKey()));
-
-
-        if (!task.id().equals(review.getAgentTaskId()) &&
-                !review.isAgentCompletionConfirmed()) {
-
-            ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
-                    review.getResume().getResumeText(), review.getJob().getDescription());
-            review.setMatchScore((double) result.score());
-            review.setVerdict(result.decision());
-            review.setReason(result.reason());
-            review.setAgentTaskId(task.id());
-            review.setAgentCompletionConfirmed(false);
-            review= resumeReviewRepository.save(review);
-
-        }
-
-        Map<String, Object> variables = new LinkedHashMap<>();
-        variables.put("matchScore", review.getMatchScore().intValue());
-        variables.put("verdict", review.getVerdict());
-        variables.put("reason", review.getReason());
-        return new AgentTaskResult(variables,review.isAgentCompletionConfirmed());
+        ResumeReviewRequest request = resumeReviewRequestService.getByProcessInstanceKey(task.processInstanceKey());
+        Optional<ResumeReviewAttempt> saved = resumeReviewAttemptService.find(task.id(), task.assignee());
+        ResumeReviewAttempt attempt = saved.isPresent()
+                ? resumeReviewAttemptService.reactivateIfWithdrawn(saved.get())
+                : scoreAndSave(task, request);
+        return toResult(attempt);
     }
+
     @Override
     public void markAsAgentCompleteTask(AgentTask current, String assignee) {
-        ResumeReview review = resumeReviewRepository.findByProcessInstanceKey(current.processInstanceKey())
-                .orElseThrow(() -> new IllegalStateException(
-                        "No ResumeReview found for process instance " + current.processInstanceKey()));
-
-        if (TaskState.COMPLETED.name().equals(current.state())) {
-            review.setAgentCompletionConfirmed(true);
-            resumeReviewRepository.save(review);
-            return;
-        }
-        if (!TaskState.CREATED.name().equals(current.state()) || !assignee.equals(current.assignee())) {
-            return;
-        }
-        review.setAgentCompletionConfirmed(true);
-        resumeReviewRepository.save(review);
+        // the poller calls this only when agent-bot completed the task (now or earlier)
+        resumeReviewAttemptService.markCompleted(current.id(), assignee);
+        resumeReviewRequestService.closeWithLatestCompletedAttempt(current.processInstanceKey());
     }
 
+    @Override
+    public void markAsWithdrawn(AgentTask current, String assignee) {
+        resumeReviewAttemptService.markWithdrawn(current.id(), assignee);
+    }
+
+    /** Calls Claude once and saves the result before the task is completed. */
+    private ResumeReviewAttempt scoreAndSave(AgentTask task, ResumeReviewRequest request) throws Exception {
+        ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
+                request.getResume().getResumeText(), request.getJob().getDescription());
+        return resumeReviewAttemptService.saveResult(task.id(), task.assignee(), request,
+                result.score(), result.decision(), result.reason());
+    }
+
+    /** Only a COMPLETED attempt means "done"; a withdrawn one was reactivated before this. */
+    private AgentTaskResult toResult(ResumeReviewAttempt attempt) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("matchScore", attempt.getMatchScore().intValue());
+        variables.put("verdict", attempt.getVerdict());
+        variables.put("reason", attempt.getReason());
+        return new AgentTaskResult(variables,
+                ResumeReviewAttempt.AttemptStatus.COMPLETED.equals(attempt.getStatus()));
+    }
 }
