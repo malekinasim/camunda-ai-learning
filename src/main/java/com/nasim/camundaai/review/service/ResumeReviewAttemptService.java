@@ -41,10 +41,25 @@ public class ResumeReviewAttemptService {
         return resumeReviewAttemptRepository.save(attempt);
     }
 
+    public ResumeReviewAttempt reactivateIfWithdrawn(String  taskId,String assignee) {
+      ResumeReviewAttempt attempt=  this.find(taskId, assignee).orElseThrow(
+              ()->new IllegalStateException(  "No ResumeReviewAttempt found for task id " + taskId)
+          );
+
+        if (!AttemptStatus.WITHDRAWN.equals(attempt.getStatus())) {
+            return attempt;
+        }
+        attempt.setStatus(AttemptStatus.RESULT_SAVED);
+        attempt.setCompletedAt(null);
+        return resumeReviewAttemptRepository.save(attempt);
+    }
     public void markCompleted(String taskId, String reviewer) {
         ResumeReviewAttempt attempt = find(taskId, reviewer)
                 .orElseThrow(() -> new IllegalStateException(
                         "No ResumeReviewAttempt found for task id " + taskId));
+        if (AttemptStatus.COMPLETED.equals(attempt.getStatus())) {
+            return;   // already completed; keep the original completedAt
+        }
         attempt.setCompletedAt(LocalDateTime.now());
         attempt.setStatus(AttemptStatus.COMPLETED);
         resumeReviewAttemptRepository.save(attempt);
