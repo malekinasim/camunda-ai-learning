@@ -49,7 +49,6 @@ class ResumeScoringExecutorTest {
         });
         when(attemptRepository.findByTaskIdAndReviewer(anyString(), anyString())).thenAnswer(inv ->
                 Optional.ofNullable(attempts.get(inv.getArgument(0) + "/" + inv.getArgument(1))));
-
         when(scoring.evaluateMatch("resume", "job"))
                 .thenReturn(new ClaudeScoringService.ScoreResult(82, "APPROVED", "Meets requirements"));
 
@@ -66,4 +65,5 @@ class ResumeScoringExecutorTest {
         assertEquals(AttemptStatus.COMPLETED, attempts.get("456/agent-bot").getStatus());
         assertEquals(AttemptStatus.RESULT_SAVED, attempts.get("789/agent-bot").getStatus());
     }
+
 }

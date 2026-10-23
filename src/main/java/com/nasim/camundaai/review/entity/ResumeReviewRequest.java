@@ -36,7 +36,7 @@ public class ResumeReviewRequest {
 
 
     @OneToMany(targetEntity = ResumeReviewAttempt.class,
-            fetch = FetchType.LAZY , orphanRemoval = true,
+            fetch = FetchType.LAZY ,
             mappedBy = "resumeReviewRequest")
     private Set<ResumeReviewAttempt> resumeReviewAttempts = new HashSet<>();
 

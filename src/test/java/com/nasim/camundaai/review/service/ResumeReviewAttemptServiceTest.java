@@ -125,4 +125,23 @@ public class ResumeReviewAttemptServiceTest {
         // Assert
         verify(repository, never()).save(any());
     }
+    @Test
+    void markWithdrawnLeavesACompletedAttemptUnchanged() {
+        // Arrange: an attempt whose result was already applied
+        var attempt = new ResumeReviewAttempt(
+                "456", "match", "APPROVED", 87.0, "agent-bot",
+                null,
+                ResumeReviewAttempt.AttemptStatus.COMPLETED);
+        LocalDateTime before = LocalDateTime.now().minusDays(1);
+        attempt.setCompletedAt(before);
+        when(repository.findByTaskIdAndReviewer("456", "agent-bot")).thenReturn(Optional.of(attempt));
+
+        // Act
+        service.markWithdrawn("456", "agent-bot");
+
+        // Assert
+        assertEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED, attempt.getStatus());
+        assertEquals(before, attempt.getCompletedAt());
+        verify(repository, never()).save(any());
+    }
 }
