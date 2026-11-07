@@ -92,6 +92,10 @@ public class TasklistClient {
         HashMap<String,Object> result = new HashMap<>();
         for (JsonNode node : objectMapper.readTree(response.body())) {
             TaskVariable variable=toVariable(node);
+            if (Boolean.TRUE.equals(variable.isValueTruncated())) {                 // added: a cut-off value is not the real value
+                log.warn("Task {}: variable {} is truncated; skipped", taskId, variable.name());
+                continue;
+            }
             result.put(variable.name(),variable.value());
         }
         return result;
