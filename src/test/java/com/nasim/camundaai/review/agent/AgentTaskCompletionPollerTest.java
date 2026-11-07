@@ -5,12 +5,15 @@ import com.nasim.camundaai.agent.AgentTaskExecutors;
 import com.nasim.camundaai.agent.ResumeScoringExecutor;
 import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.ai.ClaudeScoringService;
+import com.nasim.camundaai.gent.assignee.decisions.managment.DecisionUtils;
+import com.nasim.camundaai.gent.assignee.entity.AutonomyLevel;
 import com.nasim.camundaai.review.entity.*;
 import com.nasim.camundaai.review.repository.ResumeReviewAttemptRepository;
 import com.nasim.camundaai.review.repository.ResumeReviewRequestRepository;
 import com.nasim.camundaai.review.service.ResumeReviewAttemptService;
 import com.nasim.camundaai.review.service.ResumeReviewRequestService;
 import com.sun.net.httpserver.HttpServer;
+import io.camunda.zeebe.client.ZeebeClient;
 import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -74,6 +77,13 @@ class AgentTaskCompletionPollerTest {
             byte[] body = task.getBytes(StandardCharsets.UTF_8);
             e.sendResponseHeaders(200, body.length); e.getResponseBody().write(body); e.close();
         });
+        // Task variables as the listener left them; values are JSON strings, as Tasklist sends them
+        String variables = "[{\"id\":\"1\",\"name\":\"autonomyBefore\",\"value\":\"\\\"AGENT_AUTONOMOUS\\\"\",\"isValueTruncated\":false},"
+                + "{\"id\":\"2\",\"name\":\"defaultAssignee\",\"value\":\"\\\"hr-employee\\\"\",\"isValueTruncated\":false}]";
+        server.createContext("/v1/tasks/456/variables/search", e -> {
+            byte[] body = variables.getBytes(StandardCharsets.UTF_8);
+            e.sendResponseHeaders(200, body.length); e.getResponseBody().write(body); e.close();
+        });
         server.createContext("/v1/tasks/456/complete", e -> {
             completionBody.set(new String(e.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             e.sendResponseHeaders(completions.incrementAndGet() == 1 ? 500 : 200, -1); e.close();
@@ -103,9 +113,13 @@ class AgentTaskCompletionPollerTest {
                                              ClaudeScoringService scoring) {
         var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
                 "agent-bot", "test-password");
+        // These tests are about retries and saved results, not autonomy: the after-checks always allow it
+        var decisionUtils = mock(DecisionUtils.class);
+        when(decisionUtils.makeFinalDecision(any(), any(), any(), any())).thenReturn(AutonomyLevel.AGENT_AUTONOMOUS);
         return new AgentTaskCompletionPoller(tasklist,
                 new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring,
                         new ResumeReviewRequestService(requestRepository),
-                        new ResumeReviewAttemptService(reviewAttemptRepository)))));
+                        new ResumeReviewAttemptService(reviewAttemptRepository)))),
+                decisionUtils, mock(ZeebeClient.class));
     }
 }

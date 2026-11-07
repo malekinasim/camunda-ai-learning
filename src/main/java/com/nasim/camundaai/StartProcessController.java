@@ -11,6 +11,7 @@ import io.camunda.zeebe.client.api.response.ProcessInstanceEvent;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -31,7 +32,8 @@ public class StartProcessController {
 
     public record StartRequest(String resumeText, String jobDescription) {
     }
-    public record StartHrReviewRequest(Long jobId, Long resumeId) {
+    /** roleLevel (JUNIOR, MID, SENIOR) is the input of the hr-risk check; leave it out to test the fail-closed path. */
+    public record StartHrReviewRequest(Long jobId, Long resumeId, String roleLevel) {
     }
 
     @PostMapping("/start-review")
@@ -55,13 +57,15 @@ public class StartProcessController {
         Resume resume = resumeRepository.findById(request.resumeId())
                 .orElseThrow(() -> new IllegalArgumentException("Resume not found: " + request.resumeId()));
 
+        Map<String, Object> variables = new HashMap<>();                         // HashMap: roleLevel may be null
+        variables.put("resumeText", resume.getResumeText());
+        variables.put("jobDescription", job.getDescription());
+        variables.put("roleLevel", request.roleLevel());
+
         ProcessInstanceEvent event = zeebeClient.newCreateInstanceCommand()
                 .bpmnProcessId("hr-review-with-delegation-process")
                 .latestVersion()
-                .variables(Map.of(
-                        "resumeText", resume.getResumeText(),
-                        "jobDescription", job.getDescription()
-                ))
+                .variables(variables)
                 .send()
                 .join();
 

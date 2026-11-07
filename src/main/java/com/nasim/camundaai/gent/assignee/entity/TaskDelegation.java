@@ -1,4 +1,4 @@
-package com.nasim.camundaai.delegation.entity;
+package com.nasim.camundaai.gent.assignee.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
