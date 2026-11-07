@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_AgentRequested" name="agent-requested" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="agent-requested" name="Agent requested by the owner">
+    <decisionTable id="DecisionTable_AgentRequested" hitPolicy="FIRST">
+      <input id="Input_AgentRequested" label="Agent requested?">
+        <inputExpression id="InputExpression_AgentRequested" typeRef="boolean">
+          <text>agentRequested</text>
+        </inputExpression>
+      </input>
+      <output id="Output_AgentRequested" label="Max autonomy" name="maxAutonomy" typeRef="string" />
+      <rule id="Rule_AgentRequested_1">
+        <description>The owner handed this task type to the agent: no limit from this check</description>
+        <inputEntry id="InputEntry_AgentRequested_1">
+          <text>true</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_AgentRequested_1">
+          <text>"AGENT_AUTONOMOUS"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_AgentRequested_2">
+        <description>Not requested, or the input is missing: a person does the work</description>
+        <inputEntry id="InputEntry_AgentRequested_2">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_AgentRequested_2">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_AgentRequested">
+      <dmndi:DMNShape id="DMNShape_AgentRequested" dmnElementRef="agent-requested">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

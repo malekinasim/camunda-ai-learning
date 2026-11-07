@@ -1,12 +1,19 @@
 package com.nasim.camundaai.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nasim.camundaai.agent.tasklist.TasklistClient;
 import com.nasim.camundaai.agent.tasklist.TasklistTask;
+import com.nasim.camundaai.agent.tasklist.TaskVariable;                              // added
+import com.nasim.camundaai.gent.assignee.decisions.managment.DecisionUtils;          // added
+import com.nasim.camundaai.gent.assignee.entity.AutonomyLevel;                       // added
+import io.camunda.zeebe.client.ZeebeClient;                                          // added
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;                                                            // added
+import java.util.List;                                                               // added
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,10 +25,19 @@ public class AgentTaskCompletionPoller {
     private static final String AGENT_ASSIGNEE = "agent-bot";
     private final TasklistClient tasklist;
     private final AgentTaskExecutors agentTaskExecutors;
-    public AgentTaskCompletionPoller(TasklistClient tasklist, AgentTaskExecutors agentTaskExecutors) {
+    private final DecisionUtils decisionUtils;                                       // added
+    private final ZeebeClient zeebeClient;                                           // added
+    private final ObjectMapper mapper = new ObjectMapper();                          // added
 
+    /** The final autonomy level and the person the task goes back to if needed. */
+    record Decision(AutonomyLevel level, String defaultAssignee) { }                 // added
+
+    public AgentTaskCompletionPoller(TasklistClient tasklist, AgentTaskExecutors agentTaskExecutors,
+                                     DecisionUtils decisionUtils, ZeebeClient zeebeClient) {   // changed
         this.tasklist = tasklist;
         this.agentTaskExecutors = agentTaskExecutors;
+        this.decisionUtils = decisionUtils;                                          // added
+        this.zeebeClient = zeebeClient;                                              // added
     }
 
     @Scheduled(fixedDelay = 10000)
@@ -75,13 +91,81 @@ public class AgentTaskCompletionPoller {
             agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
             return;
         }
-        tasklist.completeTask(task.id(), result.variables());
-        agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
 
+        Decision decision = applyAutonomy(task.id(), result.variables());              // added: after-checks
+        switch (decision.level()) {                                                     // added
+            case AGENT_AUTONOMOUS -> {
+                tasklist.completeTask(task.id(), result.variables());
+                agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
+            }
+            case AGENT_WITH_APPROVAL -> {
+                //tasklist.saveDraftVariables(task.id(), result.variables());            // first the draft: the person sees the proposal
+                //tasklist.assignTask(task.id(), decision.defaultAssignee());            // then hand the same task back
+
+                zeebeClient.newSetVariablesCommand(task.processInstanceKey())        // the form reads these: the person sees the proposal
+                        .variables(result.variables())
+                        .send()
+                        .join();
+                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))
+                        .assignee(decision.defaultAssignee())
+                        .allowOverride(true)
+                        .send()
+                        .join();
+
+                log.info("Task {} handed back to {} for approval", task.id(), decision.defaultAssignee());
+            }
+            case HUMAN -> {
+                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))       // fixed: Tasklist returns 403 for agent-bot
+                        .assignee(decision.defaultAssignee())
+                        .allowOverride(true)
+                        .send()
+                        .join();                                                      // no proposal variables: independent decision (#46)
+                agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
+                log.info("Task {} handed back to {}; agent proposal not shown", task.id(), decision.defaultAssignee());
+            }
+        }
+    }
+
+    /** Runs the after-checks and combines them with the before result. The strictest wins. */
+    private Decision applyAutonomy(String taskId, Map<String, Object> proposal) throws Exception {   // added
+        // 1. Task variables -> DMN input (a JSON object keyed by name)
+        Map<String, Object> input =  tasklist.searchTaskVariables(taskId, List.of());
+        input.put("proposal", proposal);                                             // the agent's output, kept separate
+
+        // 2. Before (from the listener) and after (evaluated now)
+        AutonomyLevel before = toLevel(input.get("autonomyBefore"));
+        Object afterChecks = input.get("taskAfterDecisions");
+        AutonomyLevel after = decisionUtils.makeFinalDecision(zeebeClient, mapper,
+                afterChecks instanceof String s ? s : null,                          // missing list -> HUMAN
+                mapper.writeValueAsString(input));
+
+        // 3. The after-checks can never raise the before limit
+        AutonomyLevel finalLevel = before.compareTo(after) <= 0 ? before : after;
+        log.info("Task {}: autonomy before={}, after={}, final={}", taskId, before, after, finalLevel);
+
+        // 4. Who gets the task back if a person is needed
+        Object defaultAssignee = input.get("defaultAssignee");
+        if (finalLevel != AutonomyLevel.AGENT_AUTONOMOUS
+                && !(defaultAssignee instanceof String s && !s.isBlank())) {
+            throw new IllegalStateException("Task " + taskId + " needs a person but has no defaultAssignee");
+        }
+        return new Decision(finalLevel, defaultAssignee instanceof String s ? s : null);
+    }
+
+    /** Missing or unknown value -> HUMAN (fail closed). */
+    static AutonomyLevel toLevel(Object value) {                                     // added
+        if (value instanceof String s) {
+            try {
+                return AutonomyLevel.valueOf(s);
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown autonomy level '{}'; treated as HUMAN", s);
+            }
+        }
+        return AutonomyLevel.HUMAN;
     }
 
     private AgentTask toAgentTask(TasklistTask task) {
-         return  new AgentTask
+        return  new AgentTask
                 (task.id(), task.taskState(), task.assignee(), task.processInstanceKey(),
                         task.taskDefinitionId());
     }

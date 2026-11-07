@@ -1,4 +1,4 @@
-package com.nasim.camundaai.delegation.config;
+package com.nasim.camundaai.gent.assignee.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

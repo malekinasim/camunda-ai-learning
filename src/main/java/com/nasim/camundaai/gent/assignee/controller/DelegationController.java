@@ -1,7 +1,7 @@
-package com.nasim.camundaai.delegation.controller;
+package com.nasim.camundaai.gent.assignee.controller;
 
-import com.nasim.camundaai.delegation.entity.TaskDelegation;
-import com.nasim.camundaai.delegation.repository.TaskDelegationRepository;
+import com.nasim.camundaai.gent.assignee.entity.TaskDelegation;
+import com.nasim.camundaai.gent.assignee.repository.TaskDelegationRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;

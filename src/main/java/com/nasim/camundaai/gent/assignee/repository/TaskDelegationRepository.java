@@ -1,6 +1,6 @@
-package com.nasim.camundaai.delegation.repository;
+package com.nasim.camundaai.gent.assignee.repository;
 
-import com.nasim.camundaai.delegation.entity.TaskDelegation;
+import com.nasim.camundaai.gent.assignee.entity.TaskDelegation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

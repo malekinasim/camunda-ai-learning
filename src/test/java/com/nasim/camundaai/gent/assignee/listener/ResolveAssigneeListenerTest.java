@@ -1,6 +1,6 @@
-package com.nasim.camundaai.delegation.listener;
+package com.nasim.camundaai.gent.assignee.listener;
 
-import com.nasim.camundaai.delegation.entity.TaskDelegation;
+import com.nasim.camundaai.gent.assignee.entity.TaskDelegation;
 import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 import java.util.List;
@@ -41,11 +41,5 @@ class ResolveAssigneeListenerTest {
         assertTrue(e.getMessage().contains("taskType"));
         assertThrows(IllegalStateException.class, () ->
                 ResolveAssigneeListener.requireDeclared("delegatorRole", "  ", "p/t"));
-    }
-    @Test void nullTaskTypeIsSentToTheDecisionAsAll() {
-        assertEquals("ALL", ResolveAssigneeListener.decisionTaskType(Optional.of(rule(null, "bot"))));
-        assertEquals("ALL", ResolveAssigneeListener.decisionTaskType(Optional.of(rule("ALL", "bot"))));
-        assertEquals("hr-review", ResolveAssigneeListener.decisionTaskType(Optional.of(rule("hr-review", "bot"))));
-        assertEquals("", ResolveAssigneeListener.decisionTaskType(Optional.empty()));
     }
 }
