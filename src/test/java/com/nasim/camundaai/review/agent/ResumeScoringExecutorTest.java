@@ -1,5 +1,8 @@
-package com.nasim.camundaai.agent;
+package com.nasim.camundaai.review.agent;
 
+import com.nasim.camundaai.agent.AgentTask;
+import com.nasim.camundaai.agent.AgentTaskResult;
+import com.nasim.camundaai.agent.ResumeScoringExecutor;
 import com.nasim.camundaai.ai.ClaudeScoringService;
 import com.nasim.camundaai.review.entity.Job;
 import com.nasim.camundaai.review.entity.Resume;

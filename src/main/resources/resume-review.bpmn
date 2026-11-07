@@ -20,6 +20,7 @@
           <zeebe:input source="= jobDescription" target="jobDescription" />
           <zeebe:output source="= matchScore" target="matchScore" />
           <zeebe:output source="= verdict" target="verdict" />
+          <zeebe:output source="= reason" target="reason" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1</bpmn:incoming>
