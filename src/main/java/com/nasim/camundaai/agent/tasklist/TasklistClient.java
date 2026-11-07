@@ -1,11 +1,13 @@
 package com.nasim.camundaai.agent.tasklist;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.net.CookieManager;
 import java.net.URI;
@@ -15,9 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Component
 public class TasklistClient {
@@ -66,6 +66,36 @@ public class TasklistClient {
         return result;
     }
 
+
+    public Map<String,Object> searchTaskVariables(String taskId, List<String> variablesNames) throws Exception {
+        HashMap<String,Object> map = new HashMap<>();
+        if(!CollectionUtils.isEmpty(variablesNames)) {
+            map.put(  "includeVariables",variablesNames.stream().map(
+                    var->{
+                        HashMap<String,Object> inner=new HashMap<>();
+                        inner.put("name",var);
+                        inner.put("alwaysReturnFullValue",true);
+                        return inner;
+                    }
+            ).toList());
+        }
+
+        String body = objectMapper.writeValueAsString(map);
+        HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
+                .uri(URI.create(baseUrl +"/v1/tasks/" + taskId + "/variables/search"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build());
+        if (response.statusCode() != 200) {
+            throw new IllegalStateException("Task variable search failed: " + response.statusCode() + " " + response.body());
+        }
+        HashMap<String,Object> result = new HashMap<>();
+        for (JsonNode node : objectMapper.readTree(response.body())) {
+            TaskVariable variable=toVariable(node);
+            result.put(variable.name(),variable.value());
+        }
+        return result;
+    }
     public TasklistTask getTask(String taskId) throws Exception {
         HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
                 .uri(URI.create(baseUrl + "/v1/tasks/" + taskId)).GET().build());
@@ -74,14 +104,8 @@ public class TasklistClient {
         }
         return toTask(objectMapper.readTree(response.body()));
     }
-
     public void completeTask(String taskId, Map<String, Object> variables) throws Exception {
-        List<Map<String, String>> encoded = new ArrayList<>();
-        for (Map.Entry<String, Object> variable : variables.entrySet()) {
-            encoded.add(Map.of("name", variable.getKey(),
-                    "value", objectMapper.writeValueAsString(variable.getValue())));
-        }
-        String body = objectMapper.writeValueAsString(Map.of("variables", encoded));
+        String body = objectMapper.writeValueAsString(Map.of("variables", encodeVariables(variables)));   // changed: helper
 
         HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
                 .uri(URI.create(baseUrl + "/v1/tasks/" + taskId + "/complete"))
@@ -93,6 +117,45 @@ public class TasklistClient {
         }
     }
 
+    /** Saves variables as a draft: the form shows them, but the task is not completed. */
+    public void saveDraftVariables(String taskId, Map<String, Object> variables) throws Exception {       // added
+        String body = objectMapper.writeValueAsString(Map.of("variables", encodeVariables(variables)));
+
+        HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
+                .uri(URI.create(baseUrl + "/v1/tasks/" + taskId + "/variables"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build());
+        if (response.statusCode() != 204 && response.statusCode() != 200) {
+            throw new IllegalStateException("Tasklist save draft failed: " + response.statusCode() + " " + response.body());
+        }
+    }
+
+    /** Assigns the task to someone else; allowOverrideAssignment because it is currently agent-bot's. */
+    public void assignTask(String taskId, String assignee) throws Exception {                            // added
+        String body = objectMapper.writeValueAsString(Map.of(
+                "assignee", assignee,
+                "allowOverrideAssignment", true));
+
+        HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
+                .uri(URI.create(baseUrl + "/v1/tasks/" + taskId + "/assign"))
+                .header("Content-Type", "application/json")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
+                .build());
+        if (response.statusCode() != 200) {
+            throw new IllegalStateException("Tasklist assign failed: " + response.statusCode() + " " + response.body());
+        }
+    }
+
+    /** Tasklist v1 wants each value as a JSON string: "REJECTED" -> "\"REJECTED\"". */
+    private List<Map<String, String>> encodeVariables(Map<String, Object> variables) throws Exception {  // added: moved out of completeTask
+        List<Map<String, String>> encoded = new ArrayList<>();
+        for (Map.Entry<String, Object> variable : variables.entrySet()) {
+            encoded.add(Map.of("name", variable.getKey(),
+                    "value", objectMapper.writeValueAsString(variable.getValue())));
+        }
+        return encoded;
+    }
     /**
      * Sends a request, logging in first if needed. If the session cookie has
      * expired (401), logs in again and retries exactly once - never in a loop.
@@ -132,5 +195,17 @@ public class TasklistClient {
                 node.path("taskDefinitionId").asText(),
                 node.path("assignee").asText(),
                 node.path("taskState").asText());
+    }
+    private TaskVariable toVariable(JsonNode node) throws JsonProcessingException {      // fixed: not static, can throw
+        JsonNode raw = node.get("value");
+        Object value = (raw == null || raw.isNull())
+                ? null
+                : objectMapper.readValue(raw.asText(), Object.class);                    // fixed: "\"HUMAN\"" -> "HUMAN"
+        return new TaskVariable(
+                node.path("id").asText(),
+                node.path("name").asText(),
+                value,                                                                    // fixed: parsed value (Object)
+                node.path("isValueTruncated").asBoolean(),                                // simpler than Boolean.valueOf(asText())
+                node.path("previewValue").asText());
     }
 }
