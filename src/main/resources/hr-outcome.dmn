@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_HrOutcome" name="hr-outcome" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="hr-outcome" name="HR outcome of the agent's proposal">
+    <decisionTable id="DecisionTable_HrOutcome" hitPolicy="FIRST">
+      <input id="Input_HrOutcome" label="Proposed verdict">
+        <inputExpression id="InputExpression_HrOutcome" typeRef="string">
+          <text>proposal.verdict</text>
+        </inputExpression>
+      </input>
+      <output id="Output_HrOutcome" label="Max autonomy" name="maxAutonomy" typeRef="string" />
+      <rule id="Rule_HrOutcome_1">
+        <description>Approve: no limit from this check</description>
+        <inputEntry id="InputEntry_HrOutcome_1">
+          <text>"APPROVED"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrOutcome_1">
+          <text>"AGENT_AUTONOMOUS"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrOutcome_2">
+        <description>Reject: a person confirms the rejection</description>
+        <inputEntry id="InputEntry_HrOutcome_2">
+          <text>"REJECTED"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrOutcome_2">
+          <text>"AGENT_WITH_APPROVAL"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrOutcome_3">
+        <description>Unknown or missing verdict: fail closed</description>
+        <inputEntry id="InputEntry_HrOutcome_3">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrOutcome_3">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_HrOutcome">
+      <dmndi:DMNShape id="DMNShape_HrOutcome" dmnElementRef="hr-outcome">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

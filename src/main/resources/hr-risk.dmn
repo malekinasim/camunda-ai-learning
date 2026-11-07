@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_HrRisk" name="hr-risk" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="hr-risk" name="HR risk by role level">
+    <decisionTable id="DecisionTable_HrRisk" hitPolicy="FIRST">
+      <input id="Input_HrRisk" label="Role level">
+        <inputExpression id="InputExpression_HrRisk" typeRef="string">
+          <text>roleLevel</text>
+        </inputExpression>
+      </input>
+      <output id="Output_HrRisk" label="Max autonomy" name="maxAutonomy" typeRef="string" />
+      <rule id="Rule_HrRisk_1">
+        <description>Senior roles: a person approves the agent's proposal</description>
+        <inputEntry id="InputEntry_HrRisk_1">
+          <text>"SENIOR"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrRisk_1">
+          <text>"AGENT_WITH_APPROVAL"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrRisk_2">
+        <description>Junior and mid roles: no limit from this check</description>
+        <inputEntry id="InputEntry_HrRisk_2">
+          <text>"JUNIOR","MID"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrRisk_2">
+          <text>"AGENT_AUTONOMOUS"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrRisk_3">
+        <description>Unknown or missing role level: fail closed</description>
+        <inputEntry id="InputEntry_HrRisk_3">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrRisk_3">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_HrRisk">
+      <dmndi:DMNShape id="DMNShape_HrRisk" dmnElementRef="hr-risk">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

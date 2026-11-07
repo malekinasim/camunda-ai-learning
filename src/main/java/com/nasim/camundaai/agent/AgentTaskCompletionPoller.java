@@ -99,8 +99,19 @@ public class AgentTaskCompletionPoller {
                 agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
             }
             case AGENT_WITH_APPROVAL -> {
-                tasklist.saveDraftVariables(task.id(), result.variables());            // first the draft: the person sees the proposal
-                tasklist.assignTask(task.id(), decision.defaultAssignee());            // then hand the same task back
+                //tasklist.saveDraftVariables(task.id(), result.variables());            // first the draft: the person sees the proposal
+                //tasklist.assignTask(task.id(), decision.defaultAssignee());            // then hand the same task back
+
+                zeebeClient.newSetVariablesCommand(task.processInstanceKey())        // the form reads these: the person sees the proposal
+                        .variables(result.variables())
+                        .send()
+                        .join();
+                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))
+                        .assignee(decision.defaultAssignee())
+                        .allowOverride(true)
+                        .send()
+                        .join();
+
                 log.info("Task {} handed back to {} for approval", task.id(), decision.defaultAssignee());
             }
             case HUMAN -> {

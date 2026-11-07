@@ -15,12 +15,20 @@ The current worker uses Tasklist's REST API. It does not open a browser or inter
 
 1. The User Task declares three input mappings: `taskType`, `delegatorRole` and `defaultAssignee`. The generic `resolve-assignee` start execution listener reads them and loads the active delegation records for that role and task type. A missing input fails the job with the process and element id; `DelegationWiringTest` also checks every BPMN file at build time.
 2. A rule for the task's own type takes priority over a general rule (`ALL` or a null task type). Multiple active rules at the selected priority are rejected instead of choosing arbitrarily. A blank target is also rejected.
-3. The listener evaluates `resolve-assignee.dmn` with `hasActiveDelegation`, `delegateTo`, `defaultAssignee`, and `taskType`. Here `taskType` is the task type of the selected delegation record (empty when no delegation is active), so the DMN decides which delegation scopes it accepts.
-4. It returns `finalAssignee`. The BPMN assignment expression `=finalAssignee` uses that value.
+3. The listener evaluates the task's **before-checks**: the decision ids in the `taskAssigneeDecisions` input (for example `agent-requested, hr-risk`). Every check is a small DMN that returns `maxAutonomy`: `HUMAN`, `AGENT_WITH_APPROVAL` or `AGENT_AUTONOMOUS`. Each check gets all task variables, plus `agentRequested` (true when an active record hands this task to `agent-bot`). The strictest result wins. No checks, a failed check, or an unknown result count as `HUMAN`.
+4. The assignee follows from that level: `HUMAN` gives `defaultAssignee`, anything else gives `agent-bot`. The listener returns `finalAssignee` and `autonomyBefore`. The BPMN assignment expression `=finalAssignee` uses the first.
 
-This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, and default human assignee are declared per task in the BPMN, so another User Task can use delegation without new Java code. The DMN chooses the default user or delegate; it does not yet contain every possible business rule.
+After the agent has made its proposal, and before anything is applied, the poller evaluates the **after-checks** in `taskAfterDecisions` (for example `hr-outcome`). They see the task variables plus the proposal as `proposal`. The final level is the strictest of `autonomyBefore` and the after-checks, so an after-check can never raise the before limit:
 
-Changing a database delegation record affects subsequent assignment evaluations without a BPMN redeploy. It does not reassign existing tasks. Changing DMN logic requires deploying an updated decision.
+| Final level | What the poller does |
+|---|---|
+| `AGENT_AUTONOMOUS` | Completes the task with the agent's result. |
+| `AGENT_WITH_APPROVAL` | Saves the proposal as a draft, then assigns the same task back to `defaultAssignee`, who approves or corrects it. |
+| `HUMAN` | Assigns the task back to `defaultAssignee` without the draft, so the person decides independently. |
+
+This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, default human assignee and checks are declared per task in the BPMN, so another User Task can use the same mechanism without new Java code.
+
+Changing a database delegation record affects subsequent assignment evaluations without a BPMN redeploy. It does not reassign existing tasks. Checks are evaluated by decision id, so a newly deployed version of a check applies to running instances too.
 
 ## What the bot does
 
