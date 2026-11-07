@@ -4,5 +4,6 @@ public record TasklistTask(String id,
                            long processInstanceKey,
                            String taskDefinitionId,
                            String assignee,
-                           String taskState) {
+                           String taskState,
+                           String implementation) {
 }

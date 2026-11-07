@@ -120,37 +120,6 @@ public class TasklistClient {
             throw new IllegalStateException("Tasklist complete failed: " + response.statusCode() + " " + response.body());
         }
     }
-
-    /** Saves variables as a draft: the form shows them, but the task is not completed. */
-    public void saveDraftVariables(String taskId, Map<String, Object> variables) throws Exception {       // added
-        String body = objectMapper.writeValueAsString(Map.of("variables", encodeVariables(variables)));
-
-        HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
-                .uri(URI.create(baseUrl + "/v1/tasks/" + taskId + "/variables"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build());
-        if (response.statusCode() != 204 && response.statusCode() != 200) {
-            throw new IllegalStateException("Tasklist save draft failed: " + response.statusCode() + " " + response.body());
-        }
-    }
-
-    /** Assigns the task to someone else; allowOverrideAssignment because it is currently agent-bot's. */
-    public void assignTask(String taskId, String assignee) throws Exception {                            // added
-        String body = objectMapper.writeValueAsString(Map.of(
-                "assignee", assignee,
-                "allowOverrideAssignment", true));
-
-        HttpResponse<String> response = send(HttpRequest.newBuilder().timeout(Duration.ofSeconds(30))
-                .uri(URI.create(baseUrl + "/v1/tasks/" + taskId + "/assign"))
-                .header("Content-Type", "application/json")
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
-                .build());
-        if (response.statusCode() != 200) {
-            throw new IllegalStateException("Tasklist assign failed: " + response.statusCode() + " " + response.body());
-        }
-    }
-
     /** Tasklist v1 wants each value as a JSON string: "REJECTED" -> "\"REJECTED\"". */
     private List<Map<String, String>> encodeVariables(Map<String, Object> variables) throws Exception {  // added: moved out of completeTask
         List<Map<String, String>> encoded = new ArrayList<>();
@@ -198,7 +167,8 @@ public class TasklistClient {
                 Long.parseLong(node.path("processInstanceKey").asText()),
                 node.path("taskDefinitionId").asText(),
                 node.path("assignee").asText(),
-                node.path("taskState").asText());
+                node.path("taskState").asText(),
+                node.path("implementation").asText(null));
     }
     private TaskVariable toVariable(JsonNode node) throws JsonProcessingException {      // fixed: not static, can throw
         JsonNode raw = node.get("value");
