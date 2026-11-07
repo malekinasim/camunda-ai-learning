@@ -8,13 +8,13 @@
       <bpmn:extensionElements>
         <zeebe:formDefinition formId="hr-review-form" />
         <zeebe:assignmentDefinition assignee="=finalAssignee" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;hr-review&#34;" target="taskType" />
-          <zeebe:input source="=&#34;HR_EMPLOYEE&#34;" target="delegatorRole" />
-          <zeebe:input source="=&#34;hr-employee&#34;" target="defaultAssignee" />
-          <zeebe:input source="=&#34;agent-requested, hr-risk&#34;" target="taskAssigneeDecisions" />
-          <zeebe:input source="=&#34;hr-outcome&#34;" target="taskAfterDecisions" />
-        </zeebe:ioMapping>
+                <zeebe:ioMapping>
+                  <zeebe:input source="= resumeText" target="resumeText" />
+                  <zeebe:input source="= jobDescription" target="jobDescription" />
+                  <zeebe:output source="= matchScore" target="matchScore" />
+                  <zeebe:output source="= verdict" target="verdict" />
+                  <zeebe:output source="= reason" target="reason" />
+                </zeebe:ioMapping>
         <zeebe:executionListeners>
           <zeebe:executionListener eventType="start" retries="3" type="resolve-assignee" />
         </zeebe:executionListeners>

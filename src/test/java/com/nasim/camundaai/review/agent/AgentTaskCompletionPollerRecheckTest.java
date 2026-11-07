@@ -203,6 +203,7 @@ class AgentTaskCompletionPollerRecheckTest {
     void handsBackToDefaultAssigneeWhenNoExecutorSupportsTheTask() throws Exception {
         when(tasklist.searchTasks(anyMap())).thenReturn(List.of(task("agent-bot", "CREATED")));
         when(executor.supports("Task_HrReview")).thenReturn(false);                  // no executor for this task type
+        when(tasklist.getTask("456")).thenReturn(task("agent-bot", "CREATED"));       // added: still the agent's on re-check
         when(tasklist.searchTaskVariables(eq("456"), anyList()))
                 .thenReturn(new HashMap<>(Map.of("defaultAssignee", "hr-employee")));
 
@@ -220,8 +221,7 @@ class AgentTaskCompletionPollerRecheckTest {
         when(tasklist.searchTaskVariables(eq("456"), anyList())).thenReturn(new HashMap<>());   // defaultAssignee missing
 
         poller.completeAgentTasks();                                                // logs the error, does not throw
-
-        verify(tasklist).searchTaskVariables(eq("456"), anyList());                 // we really reached the check
+        verify(tasklist).getTask("456");               // we really reached the check
         verify(zeebeClient, never()).newUserTaskAssignCommand(anyLong());           // nobody to give it to: no assign
         verify(executor, never()).execute(any());
     }

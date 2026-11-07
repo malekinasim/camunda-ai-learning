@@ -61,8 +61,14 @@ public class AgentTaskCompletionPoller {
 
     private void completeOne(TasklistTask task) throws Exception {
         Optional<AgentTaskExecutor> agentTaskExecutor=agentTaskExecutors.forType(task.taskDefinitionId());
-
-        if (agentTaskExecutor.isEmpty()) {                                               // changed (#11)
+        if (agentTaskExecutor.isEmpty()) {
+            TasklistTask current = tasklist.getTask(task.id());                          // added: the search result may be stale
+            if (!TaskState.CREATED.name().equals(current.taskState())
+                    || !AGENT_ASSIGNEE.equals(current.assignee())) {
+                log.info("Skipping unsupported task {}: state={}, assignee={}",
+                        current.id(), current.taskState(), current.assignee());
+                return;                                                                  // someone else owns it now: do not override
+            }
             Object defaultAssignee = tasklist.searchTaskVariables(task.id(), List.of("defaultAssignee"))
                     .get("defaultAssignee");
             if (!(defaultAssignee instanceof String person) || person.isBlank()) {
