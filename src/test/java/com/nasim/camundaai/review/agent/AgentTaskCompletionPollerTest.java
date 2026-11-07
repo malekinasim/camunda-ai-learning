@@ -103,6 +103,7 @@ class AgentTaskCompletionPollerTest {
             assertEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED,saved.get().getStatus());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
+            assertTrue(searchBody.get().contains("\"CREATED\""));   // the poller searches only active tasks
         } finally { server.stop(0); }
     }
 

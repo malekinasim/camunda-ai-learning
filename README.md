@@ -9,7 +9,7 @@ The current worker uses Tasklist's REST API. It does not open a browser or inter
 | Process | Behavior |
 |---|---|
 | `resume-review-process` | A Service Task scores a resume with Claude. Scores of 50 or more continue to human review; lower scores end the process. |
-| `hr-review-with-delegation-process` | A start execution listener resolves the assignee of one HR User Task using database delegation records and a DMN decision. |
+| `hr-review-with-delegation-process` | A start execution listener resolves the assignee of one HR User Task using database delegation records and autonomy checks (small DMN decisions) declared on the task. |
 
 ## How delegation works
 
@@ -39,7 +39,7 @@ Changing a database delegation record affects subsequent assignment evaluations 
 
 `AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for all active (`CREATED`) tasks assigned to `agent-bot`, of any task type and either implementation. For each task it picks an `AgentTaskExecutor` whose `supports(...)` accepts the task's `taskDefinitionId`. A task without a matching executor currently fails that round and is logged; handing it back to its default assignee is planned, not built.
 
-For each task it loads the linked `ResumeReview`, scores its resume against the job description, and saves the decision before attempting completion. The saved task ID lets later attempts reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
+For each task it loads the linked `ResumeReviewRequest`, scores its resume against the job description, and saves the result as a `ResumeReviewAttempt` keyed by task id before attempting completion. The saved attempt lets later rounds reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 
 Before completion, the worker reads the task again. It completes the task only if it is still CREATED and assigned to agent-bot; otherwise it logs the reason and skips it, and the saved result is not applied. If the task is already completed, it is recorded as the agent’s completion only when agent-bot is still the assignee.
 
@@ -55,13 +55,16 @@ The delegated task receives:
 | `verdict` | `APPROVED` or `REJECTED`, matching the form's radio options |
 | `reason` | A separate explanation |
 
-The older Service Task keeps its existing contract: `verdict` contains the explanation. Invalid model output fails the attempt rather than silently becoming score zero.
+The older Service Task (`resume-review-process`) uses the same contract: `verdict` is `APPROVED` or `REJECTED` and `reason` holds the explanation. Invalid model output fails the attempt rather than silently becoming score zero.
 
 ## Data model
 
-`Job` stores a job posting, `Resume` stores a resume, and `ResumeReview` links them to a process instance. The bot saves its result and task completion marker on the review row.
+`Job` stores a job posting and `Resume` stores a resume.
 
-Human form submission writes process variables. **Synchronizing human results back to `ResumeReview` is not implemented.** Existing rows created before the bot task marker was added are not assumed to contain reusable validated decisions.
+- `ResumeReviewRequest`: one row per process instance. It links the job and the resume, and has a status (`OPEN` / `COMPLETED`) and, later, the final attempt.
+- `ResumeReviewAttempt`: one row per review of a task, by the agent or a person, unique per task id and reviewer. The agent saves its score, verdict and reason here before completing the task.
+
+Human form submission writes process variables. **Recording human reviews as attempts is not implemented** (#23, #31).
 
 ## Versions and task type
 
@@ -132,15 +135,23 @@ curl -X POST http://localhost:9090/resumes -H 'Content-Type: application/json' \
   -d '{"candidateName":"Example Candidate","resumeText":"Java backend developer with Spring Boot experience"}'
 
 curl -X POST http://localhost:9090/delegations -H 'Content-Type: application/json' \
-  -d '{"delegatorRole":"HR_EMPLOYEE","taskType":"hr-review","delegateTo":"agent-bot","startDate":"2026-09-16","endDate":"2026-09-30"}'
+  -d '{"delegatorRole":"HR_EMPLOYEE","taskType":"hr-review","delegateTo":"agent-bot","startDate":"2026-11-01","endDate":"2026-12-31"}'
 
 curl -X POST http://localhost:9090/start-hr-review -H 'Content-Type: application/json' \
-  -d '{"jobId":1,"resumeId":1}'
+  -d '{"jobId":1,"resumeId":1,"roleLevel":"JUNIOR"}'
 
 curl http://localhost:9090/resume-reviews
 ```
 
-Use the IDs returned by the create calls and a date range that includes today. Avoid creating overlapping delegation records at the same priority. Without active delegation, the task goes to the configured human assignee.
+Use the IDs returned by the create calls and a date range that includes today. Avoid creating overlapping delegation records at the same priority.
+
+What to expect:
+
+- `"roleLevel":"JUNIOR"` with a resume that matches the job: the agent completes the task.
+- `"roleLevel":"SENIOR"`, or a resume the agent rejects: the task goes back to `hr-employee`, and the form shows the agent's proposal.
+- No active delegation, or no `roleLevel`: the task goes to `hr-employee` directly.
+
+The log line `Task …: autonomy before=…, after=…, final=…` shows how each decision was reached.
 
 The original example is available through `POST /start-review` with `resumeText` and `jobDescription`.
 
@@ -150,7 +161,7 @@ The original example is available through `POST /start-review` with `resumeText`
 mvn test
 ```
 
-Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, and reuse of saved decisions after completion failure. They do not require a real model call or running Camunda cluster.
+Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, reuse of saved decisions after completion failure, and the autonomy outcomes (complete, hand back with or without the proposal). They do not require a real model call or running Camunda cluster.
 
 ## Remaining limitations
 
