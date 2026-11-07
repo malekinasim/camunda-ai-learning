@@ -51,7 +51,7 @@ public class AgentTaskCompletionPoller {
                 try {
                     completeOne(task);
                 } catch (Exception e) {
-                    log.error("Failed to complete task {} for agent-bot", task.id(), e);
+                    log.error("Failed to complete task {} ({}) for agent-bot", task.id(),task.implementation(), e);
                 }
             }
         } catch (Exception e) {

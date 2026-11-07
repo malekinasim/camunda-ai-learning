@@ -167,7 +167,8 @@ public class TasklistClient {
                 Long.parseLong(node.path("processInstanceKey").asText()),
                 node.path("taskDefinitionId").asText(),
                 node.path("assignee").asText(),
-                node.path("taskState").asText());
+                node.path("taskState").asText(),
+                node.path("implementation").asText(null));
     }
     private TaskVariable toVariable(JsonNode node) throws JsonProcessingException {      // fixed: not static, can throw
         JsonNode raw = node.get("value");

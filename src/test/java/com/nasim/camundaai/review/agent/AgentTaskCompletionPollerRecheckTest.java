@@ -36,7 +36,7 @@ class AgentTaskCompletionPollerRecheckTest {
     }
 
     private static TasklistTask task(String assignee, String state) {
-        return new TasklistTask("456", 123L, "Task_HrReview", assignee, state);
+        return new TasklistTask("456", 123L, "Task_HrReview", assignee, state,"ZEEBE_USER_TASK");
     }
 
     /** Task variables as the listener left them. A HashMap: the poller adds "proposal" to it. */
