@@ -115,7 +115,11 @@ public class AgentTaskCompletionPoller {
                 log.info("Task {} handed back to {} for approval", task.id(), decision.defaultAssignee());
             }
             case HUMAN -> {
-                tasklist.assignTask(task.id(), decision.defaultAssignee());            // no draft: independent decision (#46)
+                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))       // fixed: Tasklist returns 403 for agent-bot
+                        .assignee(decision.defaultAssignee())
+                        .allowOverride(true)
+                        .send()
+                        .join();                                                      // no proposal variables: independent decision (#46)
                 agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
                 log.info("Task {} handed back to {}; agent proposal not shown", task.id(), decision.defaultAssignee());
             }

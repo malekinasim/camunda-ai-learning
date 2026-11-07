@@ -23,9 +23,17 @@ class AgentTaskCompletionPollerRecheckTest {
     private final TasklistClient tasklist = mock(TasklistClient.class);
     private final AgentTaskExecutor executor = mock(AgentTaskExecutor.class);
     private final DecisionUtils decisionUtils = mock(DecisionUtils.class);
+    // Deep stubs: every step of zeebeClient.newX(...).a(...).send().join() returns a mock,
+    // and the same arguments return the same step mock, so we can verify the chain.
+    private final ZeebeClient zeebeClient = mock(ZeebeClient.class, RETURNS_DEEP_STUBS);
     private final AgentTaskCompletionPoller poller =
             new AgentTaskCompletionPoller(tasklist, new AgentTaskExecutors(List.of(executor)),
-                    decisionUtils, mock(ZeebeClient.class));
+                    decisionUtils, zeebeClient);
+
+    /** The task (key 456) was handed back to hr-employee through Zeebe. */
+    private void verifyHandedBackToEmployee() {
+        verify(zeebeClient.newUserTaskAssignCommand(456L)).assignee("hr-employee");
+    }
 
     private static TasklistTask task(String assignee, String state) {
         return new TasklistTask("456", 123L, "Task_HrReview", assignee, state);
@@ -139,7 +147,8 @@ class AgentTaskCompletionPollerRecheckTest {
                         "agent-bot", 123L,
                         "Task_HrReview")),
                 eq("agent-bot"));
-        verify(tasklist, never()).assignTask(anyString(), anyString());
+        verify(zeebeClient, never()).newUserTaskAssignCommand(anyLong());
+        verify(zeebeClient, never()).newSetVariablesCommand(anyLong());
     }
 
     @Test
@@ -148,9 +157,11 @@ class AgentTaskCompletionPollerRecheckTest {
 
         poller.completeAgentTasks();
 
-        InOrder order = inOrder(tasklist);                                          // the draft must exist before the person gets the task
-        order.verify(tasklist).saveDraftVariables(eq("456"), eq(Map.of("approved", true)));
-        order.verify(tasklist).assignTask("456", "hr-employee");
+        var setVariables = zeebeClient.newSetVariablesCommand(123L);               // process instance 123
+        var assign = zeebeClient.newUserTaskAssignCommand(456L);                   // user task 456
+        InOrder order = inOrder(setVariables, assign);                              // the proposal must be there before the person gets the task
+        order.verify(setVariables).variables(eq(Map.of("approved", true)));
+        order.verify(assign).assignee("hr-employee");
         verify(tasklist, never()).completeTask(anyString(), anyMap());
         verify(executor, never()).markAsAgentCompleteTask(any(), anyString());
     }
@@ -161,8 +172,8 @@ class AgentTaskCompletionPollerRecheckTest {
 
         poller.completeAgentTasks();
 
-        verify(tasklist).saveDraftVariables(eq("456"), anyMap());
-        verify(tasklist).assignTask("456", "hr-employee");
+        verify(zeebeClient.newSetVariablesCommand(123L)).variables(anyMap());
+        verifyHandedBackToEmployee();
         verify(tasklist, never()).completeTask(anyString(), anyMap());
     }
 
@@ -172,8 +183,8 @@ class AgentTaskCompletionPollerRecheckTest {
 
         poller.completeAgentTasks();
 
-        verify(tasklist).assignTask("456", "hr-employee");
-        verify(tasklist, never()).saveDraftVariables(anyString(), anyMap());        // the person decides independently (#46)
+        verifyHandedBackToEmployee();
+        verify(zeebeClient, never()).newSetVariablesCommand(anyLong());             // the person decides independently (#46)
         verify(tasklist, never()).completeTask(anyString(), anyMap());
         verify(executor).markAsWithdrawn(any(), eq("agent-bot"));
     }
@@ -184,8 +195,8 @@ class AgentTaskCompletionPollerRecheckTest {
 
         poller.completeAgentTasks();
 
-        verify(tasklist).assignTask("456", "hr-employee");
-        verify(tasklist, never()).saveDraftVariables(anyString(), anyMap());
+        verifyHandedBackToEmployee();
+        verify(zeebeClient, never()).newSetVariablesCommand(anyLong());
         verify(tasklist, never()).completeTask(anyString(), anyMap());
     }
 }

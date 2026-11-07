@@ -23,8 +23,13 @@ After the agent has made its proposal, and before anything is applied, the polle
 | Final level | What the poller does |
 |---|---|
 | `AGENT_AUTONOMOUS` | Completes the task with the agent's result. |
-| `AGENT_WITH_APPROVAL` | Saves the proposal as a draft, then assigns the same task back to `defaultAssignee`, who approves or corrects it. |
-| `HUMAN` | Assigns the task back to `defaultAssignee` without the draft, so the person decides independently. |
+| `AGENT_WITH_APPROVAL` | Sets the proposal as process variables, so the form shows it, then assigns the same task back to `defaultAssignee`, who approves or corrects it. |
+| `HUMAN` | Assigns the task back to `defaultAssignee` without the proposal, so the person decides independently. |
+
+Two implementation choices behind this:
+
+- **The control component hands the task back, not the agent.** The poller reassigns through Zeebe (`newUserTaskAssignCommand`). In Tasklist, `agent-bot` may only assign tasks to itself, and that is kept on purpose: the agent cannot give work to other people (least privilege).
+- **The proposal is set as process variables, not as a Tasklist draft.** A Tasklist draft is only visible to the user who saved it (`agent-bot`), so the person would see an empty form. The agent's original proposal also stays in the review attempt in the database.
 
 This uses a **start execution listener**, not a creating User Task Listener or `correctAssignee`. The role, task type, default human assignee and checks are declared per task in the BPMN, so another User Task can use the same mechanism without new Java code.
 
