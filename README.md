@@ -37,7 +37,7 @@ Changing a database delegation record affects subsequent assignment evaluations 
 
 ## What the bot does
 
-`AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for all active (`CREATED`) tasks assigned to `agent-bot`, of any task type and either implementation. For each task it picks an `AgentTaskExecutor` whose `supports(...)` accepts the task's `taskDefinitionId`. A task without a matching executor currently fails that round and is logged; handing it back to its default assignee is planned, not built.
+`AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for all active (`CREATED`) tasks assigned to `agent-bot`, of any task type and either implementation. For each task it picks an `AgentTaskExecutor` whose `supports(...)` accepts the task's `taskDefinitionId`. A task without a matching executor currently fails that round and is logged; is handed back to its default assignee, with a warning in the log.
 
 For each task it loads the linked `ResumeReviewRequest`, scores its resume against the job description, and saves the result as a `ResumeReviewAttempt` keyed by task id before attempting completion. The saved attempt lets later rounds reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 

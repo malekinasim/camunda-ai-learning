@@ -62,10 +62,18 @@ public class AgentTaskCompletionPoller {
     private void completeOne(TasklistTask task) throws Exception {
         Optional<AgentTaskExecutor> agentTaskExecutor=agentTaskExecutors.forType(task.taskDefinitionId());
 
-        if(agentTaskExecutor.isEmpty())//TODO we should redelegated it to defaultAssignee
-            throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + " is not for this executor");
-
-
+        if (agentTaskExecutor.isEmpty()) {                                               // changed (#11)
+            Object defaultAssignee = tasklist.searchTaskVariables(task.id(), List.of("defaultAssignee"))
+                    .get("defaultAssignee");
+            if (!(defaultAssignee instanceof String person) || person.isBlank()) {
+                throw new IllegalStateException("No executor for " + task.taskDefinitionId()
+                        + " and no defaultAssignee on task " + task.id());
+            }
+            handBack(task.id(), person);
+            log.warn("No executor for task type {}; task {} handed back to {}",
+                    task.taskDefinitionId(), task.id(), person);
+            return;
+        }
         AgentTaskResult result = agentTaskExecutor.get().execute(toAgentTask(task));
 
         boolean alreadyDone = result.alreadyCompleted();   // not a process variable
@@ -105,26 +113,24 @@ public class AgentTaskCompletionPoller {
                         .variables(result.variables())
                         .send()
                         .join();
-                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))
-                        .assignee(decision.defaultAssignee())
-                        .allowOverride(true)
-                        .send()
-                        .join();
-
+                handBack(task.id(), decision.defaultAssignee());
                 log.info("Task {} handed back to {} for approval", task.id(), decision.defaultAssignee());
             }
             case HUMAN -> {
-                zeebeClient.newUserTaskAssignCommand(Long.parseLong(task.id()))       // fixed: Tasklist returns 403 for agent-bot
-                        .assignee(decision.defaultAssignee())
-                        .allowOverride(true)
-                        .send()
-                        .join();                                                      // no proposal variables: independent decision (#46)
+                handBack(task.id(), decision.defaultAssignee());                                                    // no proposal variables: independent decision (#46)
                 agentTaskExecutor.get().markAsWithdrawn(toAgentTask(current), AGENT_ASSIGNEE);
                 log.info("Task {} handed back to {}; agent proposal not shown", task.id(), decision.defaultAssignee());
             }
         }
     }
-
+    /** Hands the same task back to a person. Through Zeebe: in Tasklist, agent-bot may only assign to itself. */
+    private void handBack(String taskId, String assignee) {
+        zeebeClient.newUserTaskAssignCommand(Long.parseLong(taskId))
+                .assignee(assignee)
+                .allowOverride(true)
+                .send()
+                .join();
+    }
     /** Runs the after-checks and combines them with the before result. The strictest wins. */
     private Decision applyAutonomy(String taskId, Map<String, Object> proposal) throws Exception {   // added
         // 1. Task variables -> DMN input (a JSON object keyed by name)

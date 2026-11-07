@@ -199,4 +199,30 @@ class AgentTaskCompletionPollerRecheckTest {
         verify(zeebeClient, never()).newSetVariablesCommand(anyLong());
         verify(tasklist, never()).completeTask(anyString(), anyMap());
     }
+    @Test
+    void handsBackToDefaultAssigneeWhenNoExecutorSupportsTheTask() throws Exception {
+        when(tasklist.searchTasks(anyMap())).thenReturn(List.of(task("agent-bot", "CREATED")));
+        when(executor.supports("Task_HrReview")).thenReturn(false);                  // no executor for this task type
+        when(tasklist.searchTaskVariables(eq("456"), anyList()))
+                .thenReturn(new HashMap<>(Map.of("defaultAssignee", "hr-employee")));
+
+        poller.completeAgentTasks();
+
+        verifyHandedBackToEmployee();                                               // back to the person, through Zeebe
+        verify(executor, never()).execute(any());                                   // the agent did no work
+        verify(tasklist, never()).completeTask(anyString(), anyMap());
+    }
+
+    @Test
+    void doesNotHandBackWhenThereIsNoDefaultAssignee() throws Exception {
+        when(tasklist.searchTasks(anyMap())).thenReturn(List.of(task("agent-bot", "CREATED")));
+        when(executor.supports("Task_HrReview")).thenReturn(false);
+        when(tasklist.searchTaskVariables(eq("456"), anyList())).thenReturn(new HashMap<>());   // defaultAssignee missing
+
+        poller.completeAgentTasks();                                                // logs the error, does not throw
+
+        verify(tasklist).searchTaskVariables(eq("456"), anyList());                 // we really reached the check
+        verify(zeebeClient, never()).newUserTaskAssignCommand(anyLong());           // nobody to give it to: no assign
+        verify(executor, never()).execute(any());
+    }
 }
