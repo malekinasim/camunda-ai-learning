@@ -63,7 +63,7 @@ public class AgentTaskCompletionPoller {
         Optional<AgentTaskExecutor> agentTaskExecutor=agentTaskExecutors.forType(task.taskDefinitionId());
 
         if(agentTaskExecutor.isEmpty())//TODO we should redelegated it to defaultAssignee
-            throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + "is not for this executor");
+            throw new IllegalArgumentException("this task definition " + task.taskDefinitionId() + " is not for this executor");
 
 
         AgentTaskResult result = agentTaskExecutor.get().execute(toAgentTask(task));
@@ -97,6 +97,8 @@ public class AgentTaskCompletionPoller {
             case AGENT_AUTONOMOUS -> {
                 tasklist.completeTask(task.id(), result.variables());
                 agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
+                log.info("Task {} completed by {}: verdict={}",                        // added (#18)
+                        task.id(), AGENT_ASSIGNEE, result.variables().get("verdict"));
             }
             case AGENT_WITH_APPROVAL -> {
                 //tasklist.saveDraftVariables(task.id(), result.variables());            // first the draft: the person sees the proposal
