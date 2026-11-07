@@ -54,6 +54,13 @@ public class DecisionUtils {
         if( results.stream().anyMatch(
                 d -> d.failure() != null || d.response() == null
         )) return  AutonomyLevel.HUMAN;
+
+
+        if (results.stream().anyMatch(d -> !isKnownLevel(d.output()))) {              // added: unknown or null output fails closed
+            log.error("Autonomy check returned an invalid level; it counts as HUMAN: {}",
+                    results.stream().map(d -> d.decisionId() + "=" + d.output()).toList());
+            return AutonomyLevel.HUMAN;
+        }
         if(results.stream().anyMatch(d->AutonomyLevel.HUMAN.name().equals(d.output()))){
             return  AutonomyLevel.HUMAN;
         }else if(   results.stream().anyMatch(d->AutonomyLevel.AGENT_WITH_APPROVAL.name().equals(d.output())) ){
@@ -62,5 +69,9 @@ public class DecisionUtils {
             return  AutonomyLevel.AGENT_AUTONOMOUS;
         }
         return  AutonomyLevel.HUMAN;
+    }
+    private static boolean isKnownLevel(String output) {                           // added
+        return output != null && Arrays.stream(AutonomyLevel.values())
+                .anyMatch(level -> level.name().equals(output));
     }
 }
