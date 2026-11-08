@@ -1,6 +1,6 @@
 # Labeling policy v1: Java backend developer (hr-review)
 
-Frozen before the first baseline run. The golden dataset (`golden-hr-review.json`) is labeled with this policy.
+Frozen before the first baseline run. The golden dataset (`../../src/test/resources/eval`) is labeled with this policy.
 Changing the policy after seeing agent results means a new policy version and a new baseline.
 
 Job description: "We need a Java backend developer with at least 5 years of experience in Java 17, Spring Boot,
