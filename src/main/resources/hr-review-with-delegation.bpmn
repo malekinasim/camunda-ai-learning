@@ -13,7 +13,7 @@
           <zeebe:input source="=&#34;HR_EMPLOYEE&#34;" target="delegatorRole" />
           <zeebe:input source="=&#34;hr-employee&#34;" target="defaultAssignee" />
           <zeebe:input source="=&#34;agent-requested, hr-risk&#34;" target="taskAssigneeDecisions" />
-          <zeebe:input source="=&#34;hr-outcome&#34;" target="taskAfterDecisions" />
+          <zeebe:input source="=&#34;hr-outcome, hr-consistency&#34;" target="taskAfterDecisions" />
           <zeebe:input source="=&#34;resume-review&#34;" target="agentSkill" />
           <zeebe:input source="=&#34;hiring-policy&#34;" target="agentSkillsExtra" />
         </zeebe:ioMapping>

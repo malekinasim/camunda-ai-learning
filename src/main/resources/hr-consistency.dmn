@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_HrConsistency" name="hr-consistency" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="hr-consistency" name="Score and verdict agree">
+    <decisionTable id="DecisionTable_HrConsistency" hitPolicy="FIRST">
+      <input id="Input_HrConsistency_Score" label="Proposed score">
+        <inputExpression id="InputExpression_HrConsistency_Score" typeRef="number">
+          <text>proposal.matchScore</text>
+        </inputExpression>
+      </input>
+      <input id="Input_HrConsistency_Verdict" label="Proposed verdict">
+        <inputExpression id="InputExpression_HrConsistency_Verdict" typeRef="string">
+          <text>proposal.verdict</text>
+        </inputExpression>
+      </input>
+      <output id="Output_HrConsistency" label="Max autonomy" name="maxAutonomy" typeRef="string" />
+      <rule id="Rule_HrConsistency_1">
+        <description>A score of 50 or more with APPROVED: the threshold is respected, no limit from this check</description>
+        <inputEntry id="InputEntry_HrConsistency_1a">
+          <text>&gt;= 50</text>
+        </inputEntry>
+        <inputEntry id="InputEntry_HrConsistency_1b">
+          <text>"APPROVED"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrConsistency_1">
+          <text>"AGENT_AUTONOMOUS"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrConsistency_2">
+        <description>A score below 50 with REJECTED: the threshold is respected, no limit from this check</description>
+        <inputEntry id="InputEntry_HrConsistency_2a">
+          <text>&lt; 50</text>
+        </inputEntry>
+        <inputEntry id="InputEntry_HrConsistency_2b">
+          <text>"REJECTED"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrConsistency_2">
+          <text>"AGENT_AUTONOMOUS"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_HrConsistency_3">
+        <description>Score and verdict contradict each other, or a value is missing: a person decides</description>
+        <inputEntry id="InputEntry_HrConsistency_3a">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="InputEntry_HrConsistency_3b">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrConsistency_3">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_HrConsistency">
+      <dmndi:DMNShape id="DMNShape_HrConsistency" dmnElementRef="hr-consistency">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
