@@ -216,12 +216,14 @@ class AgentTaskCompletionPollerRecheckTest {
 
     @Test
     void doesNotHandBackWhenThereIsNoDefaultAssignee() throws Exception {
-        when(tasklist.searchTasks(anyMap())).thenReturn(List.of(task("agent-bot", "CREATED")));
+        when(tasklist.searchTasks(anyMap())).thenReturn(List.of(task("agent-bot", "CREATED")));   // the poller finds the task
+        when(tasklist.getTask("456")).thenReturn(task("agent-bot", "CREATED"));
         when(executor.supports("Task_HrReview")).thenReturn(false);
         when(tasklist.searchTaskVariables(eq("456"), anyList())).thenReturn(new HashMap<>());   // defaultAssignee missing
 
         poller.completeAgentTasks();                                                // logs the error, does not throw
-        verify(tasklist).getTask("456");               // we really reached the check
+
+        verify(tasklist).searchTaskVariables(eq("456"), anyList());                 // we really reached the check
         verify(zeebeClient, never()).newUserTaskAssignCommand(anyLong());           // nobody to give it to: no assign
         verify(executor, never()).execute(any());
     }
