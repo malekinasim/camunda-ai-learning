@@ -19,11 +19,15 @@ public class ClaudeClient {
     private static final String API_URL = "https://api.anthropic.com/v1/messages";
     private static final String API_VERSION = "2023-06-01";
 
-    @Value("${anthropic.api-key}")
-    private String apiKey;
 
-    @Value("${anthropic.model}")
-    private String model;
+    private final String apiKey;                                                    // changed: no field @Value
+    private final String model;
+
+    public ClaudeClient(@Value("${anthropic.api-key}") String apiKey,              // added: Spring still injects them
+                        @Value("${anthropic.model}") String model) {
+        this.apiKey = apiKey;
+        this.model = model;
+    }
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
