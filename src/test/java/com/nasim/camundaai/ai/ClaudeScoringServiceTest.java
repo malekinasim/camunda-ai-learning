@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ClaudeScoringServiceTest {
-    private final ClaudeScoringService service = new ClaudeScoringService();
+    private final ClaudeScoringService service = new ClaudeScoringService(new SkillLoader());
 
     @Test void acceptsValidDecisionAndSeparateReason() throws Exception {
         var result = service.parseResult("```json\n{\"score\":82,\"decision\":\"APPROVED\",\"reason\":\"Meets requirements\"}\n```");
