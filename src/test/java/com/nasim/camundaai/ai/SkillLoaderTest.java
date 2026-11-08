@@ -15,7 +15,7 @@ class SkillLoaderTest {
         Skill skill = loader.load("resume-review");
 
         assertEquals("resume-review", skill.name());
-        assertEquals("2", skill.version());
+        assertEquals("3", skill.version());
         assertTrue(skill.instructions().startsWith("You review resumes"));
         assertFalse(skill.instructions().contains("version:"));      // the frontmatter is not part of the instructions
     }
@@ -25,7 +25,7 @@ class SkillLoaderTest {
 
         assertEquals(List.of("resumeText", "jobDescription"), skill.inputs());
         assertNotNull(skill.outputSchema());
-        assertEquals("resume-review@2", skill.versionId());
+        assertEquals("resume-review@3", skill.versionId());
     }
 
     @Test

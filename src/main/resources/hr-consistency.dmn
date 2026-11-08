@@ -13,6 +13,18 @@
         </inputExpression>
       </input>
       <output id="Output_HrConsistency" label="Max autonomy" name="maxAutonomy" typeRef="string" />
+      <rule id="Rule_HrConsistency_4">
+        <description>Needs review: not a decision, never applied, whatever the score</description>
+        <inputEntry id="InputEntry_HrConsistency_4a">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="InputEntry_HrConsistency_4b">
+          <text>"NEEDS_REVIEW"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrConsistency_4">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
       <rule id="Rule_HrConsistency_1">
         <description>A score of 50 or more with APPROVED: the threshold is respected, no limit from this check</description>
         <inputEntry id="InputEntry_HrConsistency_1a">
