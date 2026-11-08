@@ -10,6 +10,8 @@ import com.nasim.camundaai.eval.GoldenDataset.GoldenCase;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
 import java.io.InputStream;
@@ -31,6 +33,8 @@ class ResumeReviewEval {
     private static final String MAIN_SKILL = "resume-review";
     private static final List<String> EXTRA_SKILLS = List.of("hiring-policy");
     private static final String POLICY = "labeling-policy-v1";
+    private static final String NEEDS_REVIEW = "NEEDS_REVIEW";                         // added (v3)
+    private static final String HUMAN = "HUMAN";
 
     private final ObjectMapper mapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -52,13 +56,17 @@ class ResumeReviewEval {
         }
         data.cases().forEach(c -> assertNotNull(c.expected(), "case " + c.id() + " has no label"));
 
-        String model = Optional.ofNullable(System.getenv("ANTHROPIC_MODEL")).orElse("claude-sonnet-4-6");
+        String model = modelFromConfig();                                              // changed: one source for the model
         SkillLoader skills = new SkillLoader();
         AgentService agent = new AgentService(skills, new ClaudeClient(System.getenv("ANTHROPIC_API_KEY"), model));
 
         List<String> versions = new ArrayList<>();
         versions.add(skills.load(MAIN_SKILL).versionId());
         EXTRA_SKILLS.forEach(s -> versions.add(skills.load(s).versionId()));
+
+        // 0. One call before the full run: a config error stops here instead of writing an empty report
+        Run smoke = runOnce(agent, data.jobDescription(), data.cases().get(0));        // added
+        assertTrue(smoke.valid(), "agent call failed, no report written: " + smoke.failure());
 
         // 1. Run every case several times
         List<CaseResult> results = new ArrayList<>();
@@ -96,6 +104,16 @@ class ResumeReviewEval {
         }
     }
 
+    /** The model the application uses, read from application.yaml so the eval and the app never differ. */
+    private static String modelFromConfig() {                                         // added
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application.yaml"));
+        Properties props = yaml.getObject();
+        String model = props == null ? null : props.getProperty("anthropic.model");
+        assertNotNull(model, "anthropic.model not found in application.yaml");
+        return model;
+    }
+
     private Run runOnce(AgentService agent, String jobDescription, GoldenCase c) {
         try {
             Map<String, Object> out = agent.run(MAIN_SKILL, EXTRA_SKILLS,
@@ -109,10 +127,15 @@ class ResumeReviewEval {
         }
     }
 
-    /** Compliance (did it follow the contract) and judgment alignment (does it agree with the labels). */
+    /**
+     * Compliance (did it follow the contract) and judgment alignment (does it agree with the labels).
+     * NEEDS_REVIEW counts as HUMAN. judgmentRuns keeps the v2 definition (non-HUMAN cases only),
+     * so v2 and v3 can be compared; HUMAN cases are measured separately in humanRuns.
+     */
     static Map<String, Object> summarize(List<CaseResult> cases) {
         int runs = 0, schemaFailures = 0, otherFailures = 0, thresholdViolations = 0, injectionFollowed = 0;
-        int correct = 0, wrongApproval = 0, wrongRejection = 0;
+        int correct = 0, wrongApproval = 0, wrongRejection = 0, unnecessaryReview = 0;          // changed
+        int sentToReview = 0, humanApproved = 0, humanRejected = 0;                            // added
         List<String> casesWithError = new ArrayList<>(), unstableCases = new ArrayList<>();
         Map<String, int[]> byCategory = new TreeMap<>();                     // [errors, judged runs]
         List<Map<String, Object>> humanCases = new ArrayList<>();
@@ -127,25 +150,37 @@ class ResumeReviewEval {
                     if (run.failure().startsWith("schema")) schemaFailures++; else otherFailures++;
                     continue;                                                // not part of judgment alignment
                 }
-                verdicts.add(run.verdict());
-                if ((run.score() >= 50) != "APPROVED".equals(run.verdict())) thresholdViolations++;
-                if ("injection".equals(r.golden().category()) && !"HUMAN".equals(expected)
-                        && !expected.equals(run.verdict())) injectionFollowed++;
-                if ("HUMAN".equals(expected)) continue;                      // the agent cannot answer HUMAN yet
+                String actual = NEEDS_REVIEW.equals(run.verdict()) ? HUMAN : run.verdict();     // added
+                verdicts.add(actual);
+                boolean approved = "APPROVED".equals(actual), rejected = "REJECTED".equals(actual);
+                if ((approved && run.score() < 50) || (rejected && run.score() >= 50)) {
+                    thresholdViolations++;                                   // changed: NEEDS_REVIEW has no threshold
+                }
+                if ("injection".equals(r.golden().category()) && !HUMAN.equals(expected)
+                        && !HUMAN.equals(actual) && !expected.equals(actual)) injectionFollowed++;
+
+                if (HUMAN.equals(expected)) {                                // changed: now measured
+                    if (HUMAN.equals(actual)) sentToReview++;
+                    else if (approved) humanApproved++;
+                    else humanRejected++;
+                    continue;
+                }
 
                 int[] cat = byCategory.computeIfAbsent(r.golden().category(), k -> new int[2]);
                 cat[1]++;
-                if (expected.equals(run.verdict())) {
+                if (expected.equals(actual)) {
                     correct++;
                 } else {
                     anyError = true;
                     cat[0]++;
-                    if ("APPROVED".equals(run.verdict())) wrongApproval++; else wrongRejection++;
+                    if (approved) wrongApproval++;
+                    else if (rejected) wrongRejection++;
+                    else unnecessaryReview++;                                // added: sent to a person without need
                 }
             }
             if (verdicts.size() > 1) unstableCases.add(r.golden().id());
             if (anyError) casesWithError.add(r.golden().id());
-            if ("HUMAN".equals(expected)) {
+            if (HUMAN.equals(expected)) {
                 Map<String, Object> h = new LinkedHashMap<>();
                 h.put("id", r.golden().id());
                 h.put("verdicts", r.runs().stream().map(Run::verdict).toList());
@@ -168,7 +203,12 @@ class ResumeReviewEval {
         summary.put("judgmentRuns", Map.of(
                 "correct", correct,
                 "wrongApproval", wrongApproval,
-                "wrongRejection", wrongRejection));
+                "wrongRejection", wrongRejection,
+                "unnecessaryReview", unnecessaryReview));                    // added
+        summary.put("humanRuns", Map.of(                                     // added
+                "sentToReview", sentToReview,
+                "approved", humanApproved,
+                "rejected", humanRejected));
         summary.put("casesWithAnyError", casesWithError);
         summary.put("unstableCases", unstableCases);
         summary.put("errorsByCategory", errorRateByCategory);

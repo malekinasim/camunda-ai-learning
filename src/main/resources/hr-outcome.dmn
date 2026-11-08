@@ -26,6 +26,15 @@
           <text>"AGENT_WITH_APPROVAL"</text>
         </outputEntry>
       </rule>
+      <rule id="Rule_HrOutcome_4">
+        <description>Needs review: the agent did not decide, so there is nothing to apply or approve</description>
+        <inputEntry id="InputEntry_HrOutcome_4">
+          <text>"NEEDS_REVIEW"</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_HrOutcome_4">
+          <text>"HUMAN"</text>
+        </outputEntry>
+      </rule>
       <rule id="Rule_HrOutcome_3">
         <description>Unknown or missing verdict: fail closed</description>
         <inputEntry id="InputEntry_HrOutcome_3">

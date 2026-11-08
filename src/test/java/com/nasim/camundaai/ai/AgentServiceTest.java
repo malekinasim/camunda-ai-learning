@@ -60,4 +60,15 @@ class AgentServiceTest {
         assertTrue(system.startsWith("You review resumes"));
         assertTrue(system.contains("## hiring-policy"));
     }
+    @Test
+    void acceptsNeedsReview() throws Exception {                                  // added (v3)
+        Map<String, Object> out = agent.validate(resumeReview,
+                "{\"matchScore\": 70, \"verdict\": \"NEEDS_REVIEW\", \"reason\": \"Java version not stated\"}");
+        assertEquals("NEEDS_REVIEW", out.get("verdict"));
+    }
+
+    @Test
+    void loadsTheCurrentSkillVersion() {                                          // added (v3)
+        assertEquals("resume-review@3", resumeReview.versionId());
+    }
 }
