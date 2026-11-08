@@ -3,7 +3,8 @@ package com.nasim.camundaai.review.agent;
 import com.nasim.camundaai.agent.AgentTask;
 import com.nasim.camundaai.agent.AgentTaskResult;
 import com.nasim.camundaai.agent.ResumeScoringExecutor;
-import com.nasim.camundaai.ai.ClaudeScoringService;
+import com.nasim.camundaai.agent.tasklist.TasklistClient;
+import com.nasim.camundaai.ai.AgentService;
 import com.nasim.camundaai.review.entity.Job;
 import com.nasim.camundaai.review.entity.Resume;
 import com.nasim.camundaai.review.entity.ResumeReviewAttempt;
@@ -13,9 +14,11 @@ import com.nasim.camundaai.review.repository.ResumeReviewAttemptRepository;
 import com.nasim.camundaai.review.repository.ResumeReviewRequestRepository;
 import com.nasim.camundaai.review.service.ResumeReviewAttemptService;
 import com.nasim.camundaai.review.service.ResumeReviewRequestService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,24 +27,24 @@ import static org.mockito.Mockito.*;
 
 class ResumeScoringExecutorTest {
 
-    private final ClaudeScoringService scoring = mock(ClaudeScoringService.class);
+    private static final List<String> INPUTS = List.of("resumeText", "jobDescription");
+
+    private final AgentService agent = mock(AgentService.class);
+    private final TasklistClient tasklist = mock(TasklistClient.class);
     private final ResumeReviewRequestRepository requestRepository = mock(ResumeReviewRequestRepository.class);
     private final ResumeReviewAttemptRepository attemptRepository = mock(ResumeReviewAttemptRepository.class);
-    private final ResumeScoringExecutor executor = new ResumeScoringExecutor(scoring,
+    private final ResumeScoringExecutor executor = new ResumeScoringExecutor(agent, tasklist,
             new ResumeReviewRequestService(requestRepository),
             new ResumeReviewAttemptService(attemptRepository));
 
     // a tiny in-memory "table" of attempts, keyed by taskId/reviewer
     private final Map<String, ResumeReviewAttempt> attempts = new HashMap<>();
 
-    @Test
-    void secondAgentTaskInTheSameProcessIsScoredAgain() throws Exception {
-        // Arrange: one review request for process 123
-        Job job = mock(Job.class);
-        Resume resume = mock(Resume.class);
-        when(job.getDescription()).thenReturn("job");
-        when(resume.getResumeText()).thenReturn("resume");
-        ResumeReviewRequest request = new ResumeReviewRequest(job, resume, 123L, ResumeReviewRequest.RequestStatus.OPEN);
+    @BeforeEach
+    void setUp() throws Exception {
+        // one review request for process 123
+        ResumeReviewRequest request = new ResumeReviewRequest(mock(Job.class), mock(Resume.class), 123L,
+                ResumeReviewRequest.RequestStatus.OPEN);
         when(requestRepository.findByProcessInstanceKey(123L)).thenReturn(Optional.of(request));
 
         // the attempt repository behaves like a table: save stores, find reads
@@ -52,9 +55,23 @@ class ResumeScoringExecutorTest {
         });
         when(attemptRepository.findByTaskIdAndReviewer(anyString(), anyString())).thenAnswer(inv ->
                 Optional.ofNullable(attempts.get(inv.getArgument(0) + "/" + inv.getArgument(1))));
-        when(scoring.evaluateMatch("resume", "job"))
-                .thenReturn(new ClaudeScoringService.ScoreResult(82, "APPROVED", "Meets requirements"));
 
+        // 1st read: the skills the task declares (as the BPMN inputs do)
+        when(tasklist.searchTaskVariables(anyString(), eq(List.of("agentSkill", "agentSkillsExtra"))))
+                .thenReturn(Map.of("agentSkill", "resume-review", "agentSkillsExtra", "hiring-policy"));
+        // 2nd read: only the inputs the main skill declares, with full values
+        when(agent.inputsOf("resume-review")).thenReturn(INPUTS);
+        when(tasklist.searchTaskVariables(anyString(), eq(INPUTS)))
+                .thenReturn(Map.of("resumeText", "resume", "jobDescription", "job"));
+
+        when(agent.run(eq("resume-review"), eq(List.of("hiring-policy")), anyMap()))
+                .thenReturn(new AgentService.AgentResult(
+                        Map.of("matchScore", 82, "verdict", "APPROVED", "reason", "Meets requirements"),
+                        List.of("resume-review@2", "hiring-policy@1"), "test-model"));
+    }
+
+    @Test
+    void secondAgentTaskInTheSameProcessIsScoredAgain() throws Exception {
         // the first agent task (456) is scored and completed
         executor.execute(new AgentTask("456", "CREATED", "agent-bot", 123L, "Task_HrReview"));
         executor.markAsAgentCompleteTask(new AgentTask("456", "COMPLETED", "agent-bot", 123L, "Task_HrReview"), "agent-bot");
@@ -63,10 +80,23 @@ class ResumeScoringExecutorTest {
         AgentTaskResult second = executor.execute(new AgentTask("789", "CREATED", "agent-bot", 123L, "Task_HrReview"));
 
         // Assert
-        assertFalse(second.alreadyCompleted());                         // the old bug returned true here
-        verify(scoring, times(2)).evaluateMatch("resume", "job");      // scored again, not skipped
+        assertFalse(second.alreadyCompleted());                                  // the old bug returned true here
+        verify(agent, times(2)).run(anyString(), anyList(), anyMap());           // run again, not skipped
+        assertEquals("resume-review@2,hiring-policy@1", attempts.get("789/agent-bot").getSkillVersion());
         assertEquals(AttemptStatus.COMPLETED, attempts.get("456/agent-bot").getStatus());
         assertEquals(AttemptStatus.RESULT_SAVED, attempts.get("789/agent-bot").getStatus());
     }
 
+    @Test
+    void readsTheDeclaredInputsByNameSoTheyComeWithFullValues() throws Exception {
+        executor.execute(new AgentTask("456", "CREATED", "agent-bot", 123L, "Task_HrReview"));
+
+        // asked by name: TasklistClient then sends alwaysReturnFullValue for each one
+        verify(tasklist).searchTaskVariables("456", INPUTS);
+        // never "all variables" (an empty list), where long values come back truncated
+        verify(tasklist, never()).searchTaskVariables(anyString(), eq(List.of()));
+        // and the agent got exactly those inputs
+        verify(agent).run("resume-review", List.of("hiring-policy"),
+                Map.of("resumeText", "resume", "jobDescription", "job"));
+    }
 }

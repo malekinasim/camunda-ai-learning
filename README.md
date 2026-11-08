@@ -39,13 +39,29 @@ Changing a database delegation record affects subsequent assignment evaluations 
 
 `AgentTaskCompletionPoller` runs with a 10-second fixed delay after the previous round finishes. It logs in to Tasklist, stores the session cookie, and searches for all active (`CREATED`) tasks assigned to `agent-bot`, of any task type and either implementation. For each task it picks an `AgentTaskExecutor` whose `supports(...)` accepts the task's `taskDefinitionId`. A task without a matching executor is handed back to its default assignee through Zeebe, with a warning in the log. If the task has no `defaultAssignee`, the error is logged and the task stays with `agent-bot`.
 
-For each task it loads the linked `ResumeReviewRequest`, scores its resume against the job description, and saves the result as a `ResumeReviewAttempt` keyed by task id before attempting completion. The saved attempt lets later rounds reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
+For each task the executor reads the skills declared on the task (`agentSkill`, `agentSkillsExtra`), runs the agent (`AgentService`) with them, and saves the validated result as a `ResumeReviewAttempt` keyed by task id before attempting completion. The saved attempt lets later rounds reuse the result rather than call Claude again. A successfully completed task is remembered so delayed search results do not trigger another execution.
 
 Before completion, the worker reads the task again. It completes the task only if it is still CREATED and assigned to agent-bot; otherwise it logs the reason and skips it, and the saved result is not applied. If the task is already completed, it is recorded as the agent’s completion only when agent-bot is still the assignee.
 
+### Skills
+
+Each task declares a main skill and supporting skills as BPMN inputs, next to the autonomy checks:
+
+```
+agentSkill       = "resume-review"    # the task's instructions and output contract
+agentSkillsExtra = "hiring-policy"    # extra rules the agent applies when relevant
+```
+
+- Skills live in `src/main/resources/skills/<name>/SKILL.md`: a frontmatter (`name`, `version`, `description`, and for a main skill `inputs`) followed by the instructions.
+- A main skill also has `output.schema.json`. `AgentService` validates the model's output against it **in Java**: the skill describes the output, the controlling code enforces it. Invalid output fails the attempt; it never becomes a default result.
+- The main skill's instructions go in the `system` field, followed by the supporting skills and when to use them. Only the inputs the main skill declares are sent, each in its own tag in the user message. Text in a resume is data, not instructions; this is a first layer against prompt injection, not a full guard.
+- Every result stores the versions of all skills used (for example `resume-review@2,hiring-policy@1`) and the model.
+
+Supporting skills are currently put in full into the system prompt, and the model decides when they apply. Loading them only on demand needs a tool-use loop (#32, #34).
+
 ### Output contract
 
-Claude returns a validated integer `score` from 0 to 100, a `decision` (`APPROVED` or `REJECTED`), and a non-empty `reason`. For this demo the decision must agree with the existing threshold: scores of 50 or more mean `APPROVED`.
+The `resume-review` schema requires an integer `matchScore` from 0 to 100, a `verdict` (`APPROVED` or `REJECTED`), and a non-empty `reason`, with no other fields. The rule that a score of 50 or more means `APPROVED` is not in the schema: the `hr-consistency` after-check sends a result where score and verdict contradict each other to a person.
 
 The delegated task receives:
 
@@ -55,14 +71,14 @@ The delegated task receives:
 | `verdict` | `APPROVED` or `REJECTED`, matching the form's radio options |
 | `reason` | A separate explanation |
 
-The older Service Task (`resume-review-process`) uses the same contract: `verdict` is `APPROVED` or `REJECTED` and `reason` holds the explanation. Invalid model output fails the attempt rather than silently becoming score zero.
+The older Service Task (`resume-review-process`) runs the same agent with `resume-review` and `hiring-policy` and returns the same three variables. It has no after-checks, so the score/verdict rule does not apply there; its gateway uses `matchScore`.
 
 ## Data model
 
 `Job` stores a job posting and `Resume` stores a resume.
 
 - `ResumeReviewRequest`: one row per process instance. It links the job and the resume, and has a status (`OPEN` / `COMPLETED`) and, later, the final attempt.
-- `ResumeReviewAttempt`: one row per review of a task, by the agent or a person, unique per task id and reviewer. The agent saves its score, verdict and reason here before completing the task.
+- `ResumeReviewAttempt`: one row per review of a task, by the agent or a person, unique per task id and reviewer. The agent saves its score, verdict and reason here before completing the task, with the skill versions and the model that produced them.
 
 Human form submission writes process variables. **Recording human reviews as attempts is not implemented** (#23, #31).
 

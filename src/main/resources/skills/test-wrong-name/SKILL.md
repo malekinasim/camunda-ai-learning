@@ -1,4 +1,5 @@
 ---
 name: test-no-version
+version: 1
 ---
-Some instructions.
+some instruction

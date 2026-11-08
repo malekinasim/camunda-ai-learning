@@ -2,6 +2,8 @@ package com.nasim.camundaai.ai;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class SkillLoaderTest {
@@ -13,9 +15,26 @@ class SkillLoaderTest {
         Skill skill = loader.load("resume-review");
 
         assertEquals("resume-review", skill.name());
-        assertEquals("1", skill.version());
+        assertEquals("2", skill.version());
         assertTrue(skill.instructions().startsWith("You review resumes"));
         assertFalse(skill.instructions().contains("version:"));      // the frontmatter is not part of the instructions
+    }
+    @Test
+    void readsInputsAndOutputSchemaOfAMainSkill() {
+        Skill skill = loader.load("resume-review");
+
+        assertEquals(List.of("resumeText", "jobDescription"), skill.inputs());
+        assertNotNull(skill.outputSchema());
+        assertEquals("resume-review@2", skill.versionId());
+    }
+
+    @Test
+    void aSupportingSkillHasNoInputsAndNoSchema() {
+        Skill skill = loader.load("hiring-policy");
+
+        assertTrue(skill.inputs().isEmpty());
+        assertNull(skill.outputSchema());
+        assertFalse(skill.description().isBlank());
     }
 
     @Test
