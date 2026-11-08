@@ -56,7 +56,7 @@ class AgentServiceTest {
 
     @Test
     void supportingSkillsFollowTheMainInstructions() {
-        String system = AgentService.systemPrompt(resumeReview, List.of(loader.load("hiring-policy")));
+        String system = AgentService.systemPrompt(resumeReview, List.of(loader.load("skills/hiring-policy")));
         assertTrue(system.startsWith("You review resumes"));
         assertTrue(system.contains("## hiring-policy"));
     }

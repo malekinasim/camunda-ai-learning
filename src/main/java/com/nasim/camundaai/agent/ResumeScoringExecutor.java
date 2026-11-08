@@ -1,29 +1,34 @@
 package com.nasim.camundaai.agent;
 
-import com.nasim.camundaai.ai.ClaudeScoringService;
+import com.nasim.camundaai.agent.tasklist.TasklistClient;                          // added
+import com.nasim.camundaai.ai.AgentService;                                         // changed: was ClaudeScoringService
 import com.nasim.camundaai.review.entity.ResumeReviewAttempt;
 import com.nasim.camundaai.review.entity.ResumeReviewRequest;
 import com.nasim.camundaai.review.service.ResumeReviewAttemptService;
 import com.nasim.camundaai.review.service.ResumeReviewRequestService;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;                                                            // added
 import java.util.LinkedHashMap;
+import java.util.List;                                                              // added
 import java.util.Map;
 import java.util.Optional;
 
-/** Temporary executor: the scoring the poller did before, behind the interface. */
+/** Runs the agent with the skills the process declares on the task, and stores the result as a review attempt. */
 @Component
 public class ResumeScoringExecutor implements AgentTaskExecutor {
 
     private static final String Task_HR_REVIEW_DEFINITION_ID = "Task_HrReview";
-    private final ClaudeScoringService claudeScoringService;
+    private final AgentService agent;                                               // changed
+    private final TasklistClient tasklist;                                          // added
     private final ResumeReviewRequestService resumeReviewRequestService;
     private final ResumeReviewAttemptService resumeReviewAttemptService;
 
-    public ResumeScoringExecutor(ClaudeScoringService claudeScoringService,
+    public ResumeScoringExecutor(AgentService agent, TasklistClient tasklist,       // changed
                                  ResumeReviewRequestService resumeReviewRequestService,
                                  ResumeReviewAttemptService resumeReviewAttemptService) {
-        this.claudeScoringService = claudeScoringService;
+        this.agent = agent;
+        this.tasklist = tasklist;
         this.resumeReviewRequestService = resumeReviewRequestService;
         this.resumeReviewAttemptService = resumeReviewAttemptService;
     }
@@ -55,13 +60,31 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         resumeReviewAttemptService.markWithdrawn(current.id(), assignee);
     }
 
-    /** Calls Claude once and saves the result before the task is completed. */
-    private ResumeReviewAttempt scoreAndSave(AgentTask task, ResumeReviewRequest request) throws Exception {
-        ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
-                request.getResume().getResumeText(), request.getJob().getDescription());
+    /** Calls the agent once, with the skills declared on the task, and saves the result before completion. */
+    private ResumeReviewAttempt scoreAndSave(AgentTask task, ResumeReviewRequest request) throws Exception {   // changed
+        // 1. The task's variables: the BPMN inputs (agentSkill, agentSkillsExtra) and the process data
+        Map<String, Object> variables = tasklist.searchTaskVariables(task.id(), List.of());
+        String mainSkill = (String) variables.get("agentSkill");
+        List<String> extraSkills = split(variables.get("agentSkillsExtra"));
+
+        // 2. The generic agent: loads the skills, sends the declared inputs, validates the output
+        AgentService.AgentResult result = agent.run(mainSkill, extraSkills, variables);
+
+        // 3. Store it; the output already matched output.schema.json, so these casts are safe
+        Map<String, Object> out = result.output();
         return resumeReviewAttemptService.saveResult(task.id(), task.assignee(), request,
-                result.score(), result.decision(), result.reason(),
-                claudeScoringService.skillVersion(), claudeScoringService.model());
+                ((Number) out.get("matchScore")).doubleValue(),
+                (String) out.get("verdict"),
+                (String) out.get("reason"),
+                String.join(",", result.skillVersions()), result.model());
+    }
+
+    /** "hiring-policy, other" -> ["hiring-policy", "other"]; missing -> no supporting skills. */
+    static List<String> split(Object declared) {                                    // added
+        if (!(declared instanceof String list) || list.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(list.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
     }
 
     /** Only a COMPLETED attempt means "done"; a withdrawn one was reactivated before this. */

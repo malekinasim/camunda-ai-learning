@@ -4,7 +4,7 @@ import com.nasim.camundaai.agent.AgentTaskCompletionPoller;
 import com.nasim.camundaai.agent.AgentTaskExecutors;
 import com.nasim.camundaai.agent.ResumeScoringExecutor;
 import com.nasim.camundaai.agent.tasklist.TasklistClient;
-import com.nasim.camundaai.ai.ClaudeScoringService;
+import com.nasim.camundaai.ai.AgentService;
 import com.nasim.camundaai.gent.assignee.decisions.managment.DecisionUtils;
 import com.nasim.camundaai.gent.assignee.entity.AutonomyLevel;
 import com.nasim.camundaai.review.entity.*;
@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,7 +39,7 @@ class AgentTaskCompletionPollerTest {
         server.start();
         try {
             var poller = poller(server, mock(ResumeReviewRequestRepository.class),mock(ResumeReviewAttemptRepository.class),
-                    mock(ClaudeScoringService.class));
+                    mock(AgentService.class));
 
 
             poller.completeAgentTasks();
@@ -50,10 +51,9 @@ class AgentTaskCompletionPollerTest {
     @Test void reusesSavedDecisionAfterCompletionFailureAndSkipsStaleSearchResults() throws Exception {
         var requestRepository = mock(ResumeReviewRequestRepository.class);
         var attemptRepository = mock(ResumeReviewAttemptRepository.class);
-        var scoring = mock(ClaudeScoringService.class);
+        var scoring = mock(AgentService.class);
         var job = mock(Job.class);
         var resume = mock(Resume.class);
-        when(scoring.skillVersion()).thenReturn("resume-review@1");
         when(job.getDescription()).thenReturn("job");
         when(resume.getResumeText()).thenReturn("resume");
         var reviewRequest = new ResumeReviewRequest(job, resume, 123L,ResumeReviewRequest.RequestStatus.OPEN);
@@ -63,8 +63,11 @@ class AgentTaskCompletionPollerTest {
         when(attemptRepository.findByTaskIdAndReviewer("456", "agent-bot"))
                 .thenAnswer(inv -> Optional.ofNullable(saved.get()));
 
-        when(scoring.evaluateMatch("resume", "job"))
-                .thenReturn(new ClaudeScoringService.ScoreResult(82, "APPROVED", "Meets requirements"));
+        // the task declares resume-review and no supporting skills (see the variables below)
+        when(scoring.run(eq("resume-review"), eq(List.of()), anyMap()))
+                .thenReturn(new AgentService.AgentResult(
+                        Map.of("matchScore", 82, "verdict", "APPROVED", "reason", "Meets requirements"),
+                        List.of("resume-review@2"), "test-model"));
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         AtomicInteger completions = new AtomicInteger();
         AtomicReference<String> searchBody = new AtomicReference<>();
@@ -82,7 +85,8 @@ class AgentTaskCompletionPollerTest {
         });
         // Task variables as the listener left them; values are JSON strings, as Tasklist sends them
         String variables = "[{\"id\":\"1\",\"name\":\"autonomyBefore\",\"value\":\"\\\"AGENT_AUTONOMOUS\\\"\",\"isValueTruncated\":false},"
-                + "{\"id\":\"2\",\"name\":\"defaultAssignee\",\"value\":\"\\\"hr-employee\\\"\",\"isValueTruncated\":false}]";
+                + "{\"id\":\"2\",\"name\":\"defaultAssignee\",\"value\":\"\\\"hr-employee\\\"\",\"isValueTruncated\":false},"
+                + "{\"id\":\"3\",\"name\":\"agentSkill\",\"value\":\"\\\"resume-review\\\"\",\"isValueTruncated\":false}]";
         server.createContext("/v1/tasks/456/variables/search", e -> {
             byte[] body = variables.getBytes(StandardCharsets.UTF_8);
             e.sendResponseHeaders(200, body.length); e.getResponseBody().write(body); e.close();
@@ -101,10 +105,10 @@ class AgentTaskCompletionPollerTest {
             poller = poller(server, requestRepository,attemptRepository, scoring);
             poller.completeAgentTasks();
             poller.completeAgentTasks();
-            verify(scoring, times(1)).evaluateMatch("resume", "job");
+            verify(scoring, times(1)).run(anyString(), anyList(), anyMap());   // the model was called once
             assertEquals(2, completions.get());
             assertEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED,saved.get().getStatus());
-            assertEquals("resume-review@1", saved.get().getSkillVersion());
+            assertEquals("resume-review@2", saved.get().getSkillVersion());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
             assertTrue(searchBody.get().contains("\"CREATED\""));   // the poller searches only active tasks
@@ -115,14 +119,14 @@ class AgentTaskCompletionPollerTest {
 
     private AgentTaskCompletionPoller poller(HttpServer server, ResumeReviewRequestRepository requestRepository,
                                              ResumeReviewAttemptRepository reviewAttemptRepository,
-                                             ClaudeScoringService scoring) {
+                                             AgentService scoring) {
         var tasklist = new TasklistClient("http://127.0.0.1:" + server.getAddress().getPort(),
                 "agent-bot", "test-password");
         // These tests are about retries and saved results, not autonomy: the after-checks always allow it
         var decisionUtils = mock(DecisionUtils.class);
         when(decisionUtils.makeFinalDecision(any(), any(), any(), any())).thenReturn(AutonomyLevel.AGENT_AUTONOMOUS);
         return new AgentTaskCompletionPoller(tasklist,
-                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring,
+                new AgentTaskExecutors(List.of(new ResumeScoringExecutor(scoring, tasklist,
                         new ResumeReviewRequestService(requestRepository),
                         new ResumeReviewAttemptService(reviewAttemptRepository)))),
                 decisionUtils, mock(ZeebeClient.class));
