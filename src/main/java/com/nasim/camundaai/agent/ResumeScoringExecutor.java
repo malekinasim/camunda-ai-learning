@@ -62,13 +62,15 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
 
     /** Calls the agent once, with the skills declared on the task, and saves the result before completion. */
     private ResumeReviewAttempt scoreAndSave(AgentTask task, ResumeReviewRequest request) throws Exception {   // changed
-        // 1. The task's variables: the BPMN inputs (agentSkill, agentSkillsExtra) and the process data
-        Map<String, Object> variables = tasklist.searchTaskVariables(task.id(), List.of());
-        String mainSkill = (String) variables.get("agentSkill");
-        List<String> extraSkills = split(variables.get("agentSkillsExtra"));
+        // 1. Which skills the task declares (short values)
+        Map<String, Object> declared = tasklist.searchTaskVariables(task.id(),
+                List.of("agentSkill", "agentSkillsExtra"));
+        String mainSkill = (String) declared.get("agentSkill");
+        List<String> extraSkills = split(declared.get("agentSkillsExtra"));
 
         // 2. The generic agent: loads the skills, sends the declared inputs, validates the output
-        AgentService.AgentResult result = agent.run(mainSkill, extraSkills, variables);
+        Map<String, Object> inputs = tasklist.searchTaskVariables(task.id(), agent.inputsOf(mainSkill));
+        AgentService.AgentResult result = agent.run(mainSkill, extraSkills, inputs);
 
         // 3. Store it; the output already matched output.schema.json, so these casts are safe
         Map<String, Object> out = result.output();

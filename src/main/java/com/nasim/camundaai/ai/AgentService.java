@@ -99,4 +99,9 @@ public class AgentService {
         }
         return text.substring(start, end + 1);
     }
+
+    /** The task variables a main skill needs: read them with full values before running it. */
+    public List<String> inputsOf(String mainSkillName) {
+        return skills.load(mainSkillName).inputs();
+    }
 }
