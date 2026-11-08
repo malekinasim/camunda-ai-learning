@@ -46,7 +46,7 @@ Before completion, the worker reads the task again. It completes the task only i
 ### Output contract
 
 Claude returns a validated integer `score` from 0 to 100, a `decision` (`APPROVED` or `REJECTED`), and a non-empty `reason`. For this demo the decision must agree with the existing threshold: scores of 50 or more mean `APPROVED`.
-
+The instructions live in src/main/resources/skills/resume-review/SKILL.md, which has a version; every agent result stores that version and the model. The output contract is validated in Java, not in the skill.
 The delegated task receives:
 
 | Variable | Value |
