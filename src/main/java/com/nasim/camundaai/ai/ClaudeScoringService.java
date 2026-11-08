@@ -18,12 +18,15 @@ public class ClaudeScoringService {
 
     private static final String API_URL = "https://api.anthropic.com/v1/messages";
     private static final String API_VERSION = "2023-06-01";
+    static final String SKILL_NAME = "resume-review";                                  // added
 
     @Value("${anthropic.api-key}")
     private String apiKey;
 
     @Value("${anthropic.model}")
     private String model;
+
+    private final Skill skill;                                                         // added
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
@@ -33,25 +36,29 @@ public class ClaudeScoringService {
 
     public record ScoreResult(int score, String decision, String reason) {
     }
-
+    public ClaudeScoringService(SkillLoader skills) {                                  // added
+        this.skill = skills.load(SKILL_NAME);
+    }
     public ScoreResult evaluateMatch(String resumeText, String jobDescription) throws Exception {
-        String prompt = """
-                Resume:
+        String data = """                                                        
+                <resume>
                 %s
-
-                Job description:
+                </resume>
+                <job_description>
                 %s
-
-                Score how well this resume matches this job from 0 to 100.
-                Respond with ONLY a JSON object, no other text, in this exact shape:
-                {"score": <integer 0-100>, "decision": "APPROVED or REJECTED", "reason": "<one sentence>"}
-                For this demo, APPROVED means score >= 50; otherwise use REJECTED.
+                </job_description>
                 """.formatted(resumeText, jobDescription);
 
-        String responseText = callClaude(prompt);
+        String responseText = callClaude(skill.instructions(), data);                  // changed
         return parseResult(responseText);
     }
+    public String skillVersion() {                                                     // added
+        return skill.name() + "@" + skill.version();
+    }
 
+    public String model() {                                                            // added
+        return model;
+    }
     ScoreResult parseResult(String text) throws Exception {
         JsonNode result = mapper.readTree(extractJson(text));
         JsonNode score = result.path("score");
@@ -71,15 +78,16 @@ public class ClaudeScoringService {
         return new ScoreResult(score.intValue(), decision.textValue(), reason.textValue());
     }
 
-    private String callClaude(String prompt) throws Exception {
+    private String callClaude(String instructions, String data) throws Exception {     // changed
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
         body.put("max_tokens", 500);
+        body.put("system", instructions);                                              // added: the skill
 
         ArrayNode messages = mapper.createArrayNode();
         ObjectNode userMessage = mapper.createObjectNode();
         userMessage.put("role", "user");
-        userMessage.put("content", prompt);
+        userMessage.put("content", data);                                              // changed: only the data
         messages.add(userMessage);
         body.set("messages", messages);
 

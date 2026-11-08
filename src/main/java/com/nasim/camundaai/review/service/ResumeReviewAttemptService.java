@@ -23,15 +23,16 @@ public class ResumeReviewAttemptService {
         return resumeReviewAttemptRepository.findByTaskIdAndReviewer(taskId, reviewer);
     }
 
-    /** Saves a result before the task is completed, so a retry can reuse it. */
     public ResumeReviewAttempt saveResult(String taskId, String reviewer, ResumeReviewRequest request,
-                                          double matchScore, String verdict, String reason) {
+                                          double matchScore, String verdict, String reason,
+                                          String skillVersion, String model) {
         ResumeReviewAttempt attempt = new ResumeReviewAttempt(
                 taskId, reason, verdict, matchScore, reviewer, request, AttemptStatus.RESULT_SAVED);
+        attempt.setSkillVersion(skillVersion);
+        attempt.setModel(model);
         return resumeReviewAttemptRepository.save(attempt);
     }
 
-    /** The task was handed back to the same reviewer: make a withdrawn attempt usable again. */
     public ResumeReviewAttempt reactivateIfWithdrawn(ResumeReviewAttempt attempt) {
         if (!AttemptStatus.WITHDRAWN.equals(attempt.getStatus())) {
             return attempt;

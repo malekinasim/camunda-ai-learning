@@ -60,7 +60,8 @@ public class ResumeScoringExecutor implements AgentTaskExecutor {
         ClaudeScoringService.ScoreResult result = claudeScoringService.evaluateMatch(
                 request.getResume().getResumeText(), request.getJob().getDescription());
         return resumeReviewAttemptService.saveResult(task.id(), task.assignee(), request,
-                result.score(), result.decision(), result.reason());
+                result.score(), result.decision(), result.reason(),
+                claudeScoringService.skillVersion(), claudeScoringService.model());
     }
 
     /** Only a COMPLETED attempt means "done"; a withdrawn one was reactivated before this. */

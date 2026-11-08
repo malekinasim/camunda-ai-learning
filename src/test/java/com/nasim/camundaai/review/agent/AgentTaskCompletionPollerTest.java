@@ -39,6 +39,8 @@ class AgentTaskCompletionPollerTest {
         try {
             var poller = poller(server, mock(ResumeReviewRequestRepository.class),mock(ResumeReviewAttemptRepository.class),
                     mock(ClaudeScoringService.class));
+
+
             poller.completeAgentTasks();
             assertEquals(2, logins.get());
             assertEquals(2, searches.get());
@@ -51,6 +53,7 @@ class AgentTaskCompletionPollerTest {
         var scoring = mock(ClaudeScoringService.class);
         var job = mock(Job.class);
         var resume = mock(Resume.class);
+        when(scoring.skillVersion()).thenReturn("resume-review@1");
         when(job.getDescription()).thenReturn("job");
         when(resume.getResumeText()).thenReturn("resume");
         var reviewRequest = new ResumeReviewRequest(job, resume, 123L,ResumeReviewRequest.RequestStatus.OPEN);
@@ -101,6 +104,7 @@ class AgentTaskCompletionPollerTest {
             verify(scoring, times(1)).evaluateMatch("resume", "job");
             assertEquals(2, completions.get());
             assertEquals(ResumeReviewAttempt.AttemptStatus.COMPLETED,saved.get().getStatus());
+            assertEquals("resume-review@1", saved.get().getSkillVersion());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
             assertTrue(searchBody.get().contains("\"CREATED\""));   // the poller searches only active tasks

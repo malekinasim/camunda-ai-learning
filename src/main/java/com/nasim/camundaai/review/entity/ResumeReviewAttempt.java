@@ -36,7 +36,10 @@ public class ResumeReviewAttempt {
     @Column(columnDefinition = "text")
     private String reason;
 
-    // Saved before completion so retries reuse the same model decision.
+    private String skillVersion;
+
+    private String model;
+
     private String taskId;
 
     private String reviewer;
