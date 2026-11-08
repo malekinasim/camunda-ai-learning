@@ -30,7 +30,7 @@ class SkillLoaderTest {
 
     @Test
     void aSupportingSkillHasNoInputsAndNoSchema() {
-        Skill skill = loader.load("skills/hiring-policy");
+        Skill skill = loader.load("hiring-policy");
 
         assertTrue(skill.inputs().isEmpty());
         assertNull(skill.outputSchema());
@@ -44,7 +44,7 @@ class SkillLoaderTest {
 
     @Test
     void failsWhenTheSkillHasNoVersion() {
-        assertThrows(IllegalStateException.class, () -> loader.load("skills/hiring-policy"));
+        assertThrows(IllegalStateException.class, () -> loader.load("test-no-version"));
     }
 
     @Test
