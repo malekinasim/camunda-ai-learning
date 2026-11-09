@@ -25,7 +25,8 @@ public class DecisionUtils {
                 .join();
     }
 
-    private List<CheckResult> readDecisions(ZeebeClient zeebeClient, ObjectMapper mapper, String taskDecisions, String variables) {
+    /** Evaluates every declared check; a failed check is returned with its failure, not thrown. */
+    public List<CheckResult> readDecisions(ZeebeClient zeebeClient, ObjectMapper mapper, String taskDecisions, String variables) {   // changed: public, so a measurement can see failures
         if (!StringUtils.hasText(taskDecisions)) {
             return List.of();
         }
@@ -47,7 +48,11 @@ public class DecisionUtils {
 
     public AutonomyLevel makeFinalDecision(ZeebeClient zeebeClient,ObjectMapper mapper, String taskDecisions,  String variables){
 
-        List<CheckResult> results=  this.readDecisions(zeebeClient,mapper,taskDecisions,variables);
+        return combine(this.readDecisions(zeebeClient,mapper,taskDecisions,variables));   // changed: same behaviour, split in two
+    }
+
+    /** The strictest result wins; no checks, a failed check or an unknown level give HUMAN (fail closed). */
+    public AutonomyLevel combine(List<CheckResult> results) {                     // added: extracted from makeFinalDecision
 
         if (results.isEmpty()) return AutonomyLevel.HUMAN;
 
