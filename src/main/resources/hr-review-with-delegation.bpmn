@@ -19,6 +19,7 @@
         </zeebe:ioMapping>
         <zeebe:executionListeners>
           <zeebe:executionListener eventType="start" retries="3" type="resolve-assignee" />
+          <zeebe:executionListener eventType="end" retries="3" type="record-human-review" />
         </zeebe:executionListeners>
         <zeebe:userTask />
       </bpmn:extensionElements>

@@ -55,6 +55,9 @@ public class ResumeReviewAttempt {
 
     private LocalDateTime completedAt;
 
+    @Enumerated(EnumType.STRING)
+    private ProposalReview proposalReview;                                        // added (#31): null on the agent's own attempts
+
     public ResumeReviewAttempt(String taskId, String reason, String verdict, Double matchScore,
                                String reviewer,
                                ResumeReviewRequest resumeReviewRequest,AttemptStatus status) {
@@ -69,4 +72,7 @@ public class ResumeReviewAttempt {
     public  enum AttemptStatus{
         RESULT_SAVED, WITHDRAWN,COMPLETED
     }
+
+    /** What the person did with the agent's proposal (#31). */
+    public enum ProposalReview { ACCEPTED, SCORE_CHANGED, VERDICT_CHANGED, NO_PROPOSAL }
 }

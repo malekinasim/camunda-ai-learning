@@ -80,7 +80,7 @@ The older Service Task (`resume-review-process`) runs the same agent with `resum
 - `ResumeReviewRequest`: one row per process instance. It links the job and the resume, and has a status (`OPEN` / `COMPLETED`) and, later, the final attempt.
 - `ResumeReviewAttempt`: one row per review of a task, by the agent or a person, unique per task id and reviewer. The agent saves its score, verdict and reason here before completing the task, with the skill versions and the model that produced them.
 
-Human form submission writes process variables. **Recording human reviews as attempts is not implemented** (#23, #31).
+When a person completes the HR task, the `record-human-review` end execution listener stores their decision as their own attempt (`COMPLETED`, it becomes the request's final result) and records what they did with the agent's proposal in `proposalReview`: `ACCEPTED`, `SCORE_CHANGED`, `VERDICT_CHANGED`, or `NO_PROPOSAL` when no proposal was shown (#31). The agent's attempt stays as it was. The listener finds the task and the person through Tasklist, so a process that loops back to the same task is not supported yet.
 
 ## Versions and task type
 
@@ -209,7 +209,7 @@ The 30 resumes are synthetic, and the hold-out is not fully blind. "Routed to a 
 - Scoring is sequential and specific to the HR task. This is not yet a general task dispatcher.
 - Multiple application instances require task-level locking and durable execution coordination.
 - Assignment can change between a status check and completion; the status check is not atomic.
-- Human result synchronization and comprehensive request validation are not implemented.
+- Comprehensive request validation is not implemented. An approval is not yet tied to an exact version of the proposal.
 - The local database uses Hibernate `ddl-auto: update`; production schema changes need explicit migrations.
 
 ## Next step: browser execution
