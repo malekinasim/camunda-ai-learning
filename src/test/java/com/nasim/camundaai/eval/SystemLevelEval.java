@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.nasim.camundaai.gent.assignee.decisions.managment.DecisionUtils;
 import com.nasim.camundaai.gent.assignee.entity.AutonomyLevel;
+import com.nasim.camundaai.gent.assignee.entity.CheckResult;
 import io.camunda.zeebe.client.ZeebeClient;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * without a person only if the autonomy checks give AGENT_AUTONOMOUS. Every saved eval run is passed through
  * the deployed DMNs (same DecisionUtils and the same strictest-wins rule as the app). No model calls.
  * Needs a running Zeebe with the DMNs deployed: RUN_SYSTEM_EVAL=true.
+ * A check that fails or returns no valid level stops the measurement: in the app that fallback is HUMAN
+ * (fail closed), but here it would look like a policy result, so no report is written.
  */
 @Tag("eval")
 @EnabledIfEnvironmentVariable(named = "RUN_SYSTEM_EVAL", matches = "true")
@@ -39,6 +42,7 @@ class SystemLevelEval {
 
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final DecisionUtils decisions = new DecisionUtils();
+    private final Map<String, String> evaluatedDecisions = new TreeMap<>();       // added: decision id -> key and version used
 
     @Test
     void runEvalResultsThroughTheAutonomyChecks() throws Exception {
@@ -63,8 +67,8 @@ class SystemLevelEval {
         try (ZeebeClient zeebe = zeebeClient()) {
             for (String roleLevel : ROLE_LEVELS) {
                 // 2. Before: the owner asked for the agent (agentRequested), the role level decides the rest
-                AutonomyLevel before = decisions.makeFinalDecision(zeebe, mapper, beforeChecks,
-                        mapper.writeValueAsString(Map.of("agentRequested", true, "roleLevel", roleLevel)));
+                AutonomyLevel before = evaluate(zeebe, beforeChecks,                   // changed: failures stop the run
+                        Map.of("agentRequested", true, "roleLevel", roleLevel), "before, " + roleLevel);
 
                 for (File file : files) {
                     JsonNode result = mapper.readTree(file);
@@ -72,6 +76,7 @@ class SystemLevelEval {
                 }
             }
         }
+        report.put("evaluatedDecisions", evaluatedDecisions);                    // added: which deployed versions were measured
         report.put("results", rows);
 
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm"));
@@ -101,8 +106,8 @@ class SystemLevelEval {
 
                 // 3. After: the proposal goes in as 'proposal', like in the poller
                 Map<String, Object> proposal = Map.of("verdict", verdict, "matchScore", run.get("score").asInt());
-                AutonomyLevel after = decisions.makeFinalDecision(zeebe, mapper, afterChecks,
-                        mapper.writeValueAsString(Map.of("roleLevel", roleLevel, "proposal", proposal)));
+                AutonomyLevel after = evaluate(zeebe, afterChecks,                       // changed: failures stop the run
+                        Map.of("roleLevel", roleLevel, "proposal", proposal), fileName + " " + id);
 
                 // 4. The after-checks can never raise the before limit (same rule as the poller)
                 AutonomyLevel finalLevel = before.compareTo(after) <= 0 ? before : after;
@@ -136,6 +141,29 @@ class SystemLevelEval {
         row.put("toAPerson", toAPerson);                                     // a person saw it, right or wrong
         row.put("finalLevels", finalLevels);
         return row;
+    }
+
+    /**
+     * The app's own evaluation and combining rule, but a failed check, an empty list or an invalid level
+     * fails the test instead of silently becoming HUMAN.
+     */
+    private AutonomyLevel evaluate(ZeebeClient zeebe, String checks, Map<String, Object> variables, String where)
+            throws Exception {
+        List<CheckResult> results = decisions.readDecisions(zeebe, mapper, checks, mapper.writeValueAsString(variables));
+        List<String> problems = new ArrayList<>();
+        if (results.isEmpty()) problems.add("no checks declared");
+        for (CheckResult r : results) {
+            if (r.failure() != null || r.response() == null) {
+                problems.add(r.decisionId() + " failed: " + r.failure());
+            } else if (Arrays.stream(AutonomyLevel.values()).noneMatch(l -> l.name().equals(r.output()))) {
+                problems.add(r.decisionId() + " returned no valid level: " + r.output());
+            } else {
+                evaluatedDecisions.put(r.decisionId(),
+                        "key " + r.response().getDecisionKey() + ", version " + r.response().getDecisionVersion());
+            }
+        }
+        assertTrue(problems.isEmpty(), "Policy not evaluated (" + where + "): " + problems + ". No report written.");
+        return decisions.combine(results);
     }
 
     /** Input mappings of one task, as name -> FEEL string literal without the quotes. */

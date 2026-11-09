@@ -56,7 +56,7 @@ The saved summary reports for both versions record **zero schema failures, thres
 
 ## System-level autonomy results (#58)
 
-The system-level evaluation **replays the saved agent proposals**; it does **not** call Claude again. The `SystemLevelEval` test evaluates the process's configured **before-checks** (`agent-requested`, `hr-risk`) and **after-checks** (`hr-outcome`, `hr-consistency`) via the deployed Camunda/Zeebe decisions. The application’s strictest-wins rule determines the final autonomy level. The same saved 90 runs per version are evaluated under each hypothetical `roleLevel` (`JUNIOR` and `SENIOR`); these are **not** 180 new model inferences.
+The system-level evaluation **replays the saved agent proposals**; it does **not** call Claude again. The `SystemLevelEval` test evaluates the process's configured **before-checks** (`agent-requested`, `hr-risk`) and **after-checks** (`hr-outcome`, `hr-consistency`) via the deployed Camunda/Zeebe decisions. The application’s strictest-wins rule determines the final autonomy level. A failed or invalid check stops the replay instead of counting as HUMAN, and the report records the key and version of every evaluated decision. The same saved 90 runs per version are evaluated under each hypothetical `roleLevel` (`JUNIOR` and `SENIOR`); these are **not** 180 new model inferences.
 
 For this analysis, a **wrong autonomous outcome** is a proposal inconsistent with the frozen label (including a decision on a golden `HUMAN` case), *and* a final level of `AGENT_AUTONOMOUS`. An **autonomous correct outcome** agrees with the label and is allowed to execute without a human. `AGENT_WITH_APPROVAL` and `HUMAN` both count as **routed to a person**.
 
@@ -115,7 +115,7 @@ Agent-level JSON reports (full responses, scores and individual runs):
 - [v2 hold-out](../../eval/results/2026-11-08_1842_resume-review@2+hiring-policy@1_holdout.json)
 - [v3 development](../../eval/results/2026-11-08_2116_resume-review@3+hiring-policy@1_development.json)
 - [v3 hold-out](../../eval/results/2026-11-08_2116_resume-review@3+hiring-policy@1_holdout.json)
-- [System-level replay results](../../eval/results/system-level_2026-11-09_0648.json)
+- [System-level replay results](../../eval/results/system-level_2026-11-09_0737.json)
 
 Code and policy:
 

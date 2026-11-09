@@ -1,7 +1,13 @@
 {
-  "date" : "2026-11-09T06:48:53.268243800",
+  "date" : "2026-11-09T07:37:12.135001600",
   "beforeChecks" : "agent-requested, hr-risk",
   "afterChecks" : "hr-outcome, hr-consistency",
+  "evaluatedDecisions" : {
+    "agent-requested" : "key 2251799813691371, version 5",
+    "hr-consistency" : "key 2251799813691368, version 1",
+    "hr-outcome" : "key 2251799813691373, version 5",
+    "hr-risk" : "key 2251799813691375, version 5"
+  },
   "results" : [ {
     "file" : "2026-11-08_1842_resume-review@2+hiring-policy@1_development.json",
     "skillVersions" : "[\"resume-review@2\",\"hiring-policy@1\"]",
