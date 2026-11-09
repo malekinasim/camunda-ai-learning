@@ -179,6 +179,30 @@ mvn test
 
 Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, reuse of saved decisions after completion failure, and the autonomy outcomes (complete, hand back with or without the proposal). They do not require a real model call or running Camunda cluster.
 
+## Evaluation
+
+The resume-review evaluation compares agent verdicts with a frozen synthetic golden dataset and then replays those proposals through the deployed HR autonomy DMNs. Agent runs require an Anthropic API key; system-level replay requires a running Zeebe instance with the DMNs deployed. Both are opt-in JUnit tests, not part of normal CI.
+
+```bash
+RUN_EVAL=true ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" mvn -Dtest=ResumeReviewEval test
+RUN_SYSTEM_EVAL=true mvn -Dtest=SystemLevelEval test
+```
+
+PowerShell:
+
+```powershell
+$env:RUN_EVAL="true"; $env:ANTHROPIC_API_KEY="<your key>"; mvn test -Dtest=ResumeReviewEval
+$env:RUN_SYSTEM_EVAL="true"; mvn test -Dtest=SystemLevelEval
+```
+
+| JUNIOR system-level result (90 saved runs per skill version) | Skill v2 | Skill v3 |
+|---|---:|---:|
+| Wrong decisions permitted to execute without a person | 22 | 3 |
+| Correct decisions permitted to execute without a person | 27 | 24 |
+| Outcomes routed to a person | 41 | 63 |
+
+The 30 resumes are synthetic, and the hold-out is not fully blind. "Routed to a person" does not mean that an error was caught. See [the full evaluation method, results, and source reports](docs/eval/results.md).
+
 ## Remaining limitations
 
 - The poller handles the first 100 matching tasks per round. A persistently failing first page can delay later work; complete pagination is future work.
