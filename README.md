@@ -2,7 +2,9 @@
 
 This learning project explores a simple idea: the same User Task can be assigned to a person or an AI worker without adding a separate AI branch to the BPMN diagram.
 
-The current worker uses Tasklist's REST API. It does not open a browser or interact with the form. Browser automation is a possible next step.
+The current Java worker uses Tasklist's REST API. It does not control a browser or fill forms through the UI; browser automation remains future work. Human approvals are submitted by a person (or via the Zeebe REST API in the documented local manual check).
+
+**Implemented scope:** a single HR User Task can be routed to a person or `agent-bot`; task-declared DMN checks cap autonomy before and after the agent produces a proposal; the agent's validated result is saved for retries; and the HR-specific end listener records the person's final decision and response to the proposal ([PR #62](https://github.com/malekinasim/camunda-ai-learning/pull/62), covering [#23](https://github.com/malekinasim/camunda-ai-learning/issues/23) and [#31](https://github.com/malekinasim/camunda-ai-learning/issues/31)). The architecture is **not yet a domain-independent task decision recorder** ([#61](https://github.com/malekinasim/camunda-ai-learning/issues/61)).
 
 ## Two examples
 
@@ -61,14 +63,14 @@ Supporting skills are currently put in full into the system prompt, and the mode
 
 ### Output contract
 
-The `resume-review` schema requires an integer `matchScore` from 0 to 100, a `verdict` (`APPROVED` or `REJECTED`), and a non-empty `reason`, with no other fields. The rule that a score of 50 or more means `APPROVED` is not in the schema: the `hr-consistency` after-check sends a result where score and verdict contradict each other to a person.
+The current `resume-review@3` output schema requires an integer `matchScore` from 0 to 100, a `verdict` (`APPROVED`, `REJECTED`, or `NEEDS_REVIEW`), and a non-empty `reason`, with no additional properties. The skill instructs the model to reject clearly unmet requirements, request review when required evidence is unclear, and approve when requirements are met. Score/verdict consistency is a skill instruction and a separate `hr-consistency` after-check, **not a JSON-schema constraint**. `NEEDS_REVIEW` is an agent proposal requesting independent human judgment, not a final human verdict.
 
 The delegated task receives:
 
 | Variable | Value |
 |---|---|
 | `matchScore` | Integer from 0 to 100 |
-| `verdict` | `APPROVED` or `REJECTED`, matching the form's radio options |
+| `verdict` | Agent output can also be `NEEDS_REVIEW`; the human form records a final `APPROVED` or `REJECTED` decision |
 | `reason` | A separate explanation |
 
 The older Service Task (`resume-review-process`) runs the same agent with `resume-review` and `hiring-policy` and returns the same three variables. It has no after-checks, so the score/verdict rule does not apply there; its gateway uses `matchScore`.
@@ -80,7 +82,9 @@ The older Service Task (`resume-review-process`) runs the same agent with `resum
 - `ResumeReviewRequest`: one row per process instance. It links the job and the resume, and has a status (`OPEN` / `COMPLETED`) and, later, the final attempt.
 - `ResumeReviewAttempt`: one row per review of a task, by the agent or a person, unique per task id and reviewer. The agent saves its score, verdict and reason here before completing the task, with the skill versions and the model that produced them.
 
-When a person completes the HR task, the `record-human-review` end execution listener stores their decision as their own attempt (`COMPLETED`, it becomes the request's final result) and records what they did with the agent's proposal in `proposalReview`: `ACCEPTED`, `SCORE_CHANGED`, `VERDICT_CHANGED`, or `NO_PROPOSAL` when no proposal was shown (#31). The agent's attempt stays as it was. The agent marks its own completion with `completedBy=agent-bot`, so the listener knows when to skip. It finds the task and the person through Tasklist; if Tasklist's index still shows `agent-bot` for a task a person completed, the job is retried with a backoff and raises an incident if it never catches up. A process that loops back to the same task is not supported yet.
+When a person completes the HR task, the `record-human-review` end execution listener records a separate `ResumeReviewAttempt` with the person's reviewer id, verdict, score, reason, completion time, and status `COMPLETED`. The HR request is closed using the latest completed attempt as its final result, while the agent's original attempt is preserved. The `proposalReview` value compares the person's decision to the **saved agent attempt**, not mutable process variables: `ACCEPTED` (same verdict and rounded score), `SCORE_CHANGED` (same verdict, different rounded score), `VERDICT_CHANGED` (different verdict; takes precedence), or `NO_PROPOSAL` (no visible proposal, including the `HUMAN` path).
+
+The agent sets `completedBy=agent-bot` on its own completion; the listener skips that completion. It finds the human reviewer through Tasklist. If Tasklist's eventually consistent index still shows the bot or an empty assignee, the listener retries with a five-second backoff (five retries configured in BPMN) and eventually raises an incident instead of silently dropping the result. If a human attempt was saved but request closure failed, a retry re-closes the request without inserting another attempt. This implementation remains **HR-specific** ([#61](https://github.com/malekinasim/camunda-ai-learning/issues/61) tracks generalization), and loop-back to the same task is not supported.
 
 ## Versions and task type
 
@@ -177,7 +181,7 @@ The original example is available through `POST /start-review` with `resumeText`
 mvn test
 ```
 
-Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, reuse of saved decisions after completion failure, and the autonomy outcomes (complete, hand back with or without the proposal). They do not require a real model call or running Camunda cluster.
+Focused unit tests cover the scoring contract, delegation precedence, bounded session retries, reuse of saved decisions after completion failure, autonomy outcomes (complete, hand back with or without the proposal), and the human-review listener's comparison, retry and idempotent closure paths. They do not require a real model call or running Camunda cluster.
 
 ## Evaluation
 
@@ -201,7 +205,11 @@ $env:RUN_SYSTEM_EVAL="true"; mvn test -Dtest=SystemLevelEval
 | Correct decisions permitted to execute without a person | 27 | 24 |
 | Outcomes routed to a person | 41 | 63 |
 
-The 30 resumes are synthetic, and the hold-out is not fully blind. "Routed to a person" does not mean that an error was caught. See [the full evaluation method, results, and source reports](docs/eval/results.md).
+The dataset contains **30 synthetic resumes** (20 development, 10 hold-out), run three times per skill version. The system-level test **replays saved proposals**; it does not make 90 additional model calls. The hold-out is not fully blind, and repeated runs are not independent applicants.
+
+For the JUNIOR replay, wrong proposals **permitted to execute autonomously** fell from **22/90 to 3/90**, but the number routed to a person rose from **41/90 to 63/90**, while correct autonomous outcomes dropped from **27 to 24**. For SENIOR, the `hr-risk` policy routed all 90 replayed outcomes per version to a person. These numbers measure system-level exposure under these particular rules, **not** observed hiring harm or the rate at which people actually caught an error. The evaluation was recorded on **8–9 November 2026**, before PR #62 added human-decision recording; the replay therefore did not measure human overrides.
+
+See [the full evaluation method, development/hold-out split, labeling policy, limitations and source reports](docs/eval/results.md).
 
 ## Remaining limitations
 
@@ -209,11 +217,14 @@ The 30 resumes are synthetic, and the hold-out is not fully blind. "Routed to a 
 - Scoring is sequential and specific to the HR task. This is not yet a general task dispatcher.
 - Multiple application instances require task-level locking and durable execution coordination.
 - Assignment can change between a status check and completion; the status check is not atomic.
-- Comprehensive request validation is not implemented. An approval is not yet tied to an exact version of the proposal.
+- Comprehensive request validation is not implemented. Recording an approval does **not** yet bind it to the exact immutable proposal version.
+- Human-decision persistence relies on Tasklist's eventually consistent index and assumes one relevant non-canceled HR task per process instance; loop-back requires another lookup strategy.
+- A completely absent or invalid declared autonomy policy falls back to `HUMAN`, but a designer omitting just one mandatory check among several is not automatically detected.
+- DMN autonomy limits workflow execution, not the permissions of future agent tools; side-effecting tools need independent access controls.
 - The local database uses Hibernate `ddl-auto: update`; production schema changes need explicit migrations.
 
-## Next step: browser execution
+## Future work: generic task decisions, tools and browser execution
 
-Keep the working API path as a baseline. A separate browser executor can authenticate, open the assigned form, inspect actual options, fill the fields, and verify submission. Prompts and DMN can provide the decision while the form supplies its current choices and validation behavior.
+Keep the working API path as a baseline. Generic recording across different task types is tracked by [#61](https://github.com/malekinasim/camunda-ai-learning/issues/61), and tool-use / retrieval by [#32](https://github.com/malekinasim/camunda-ai-learning/issues/32), [#34](https://github.com/malekinasim/camunda-ai-learning/issues/34) and [#35](https://github.com/malekinasim/camunda-ai-learning/issues/35). A separate browser executor could authenticate, open the assigned form, inspect actual options, fill the fields and verify submission. Prompts and DMN can provide the decision while the form supplies its current choices and validation behavior.
 
 Version-specific task APIs, authentication, and UI routes should sit behind adapters. This makes future upgrades manageable, but does not make browser automation automatically compatible with every Camunda version.
