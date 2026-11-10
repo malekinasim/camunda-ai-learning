@@ -59,7 +59,10 @@ public class RecordHumanReviewListener {
             throw new IllegalStateException("Task " + task.id() + " was completed without an assignee");
         }
         if (attempts.find(task.id(), task.assignee()).isPresent()) {
-            return;                                                          // a retry of this job: already recorded
+            // A retry: the decision is saved, but closing the request may have failed last time.
+            // Closing is idempotent, so do it again instead of returning with the request still OPEN.
+            requests.closeWithLatestCompletedAttempt(processInstanceKey);
+            return;
         }
 
         // 2. What the person submitted in the form

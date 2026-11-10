@@ -70,13 +70,14 @@ class RecordHumanReviewListenerTest {
     }
 
     @Test
-    void aRetryDoesNotRecordTwice() throws Exception {
+    void aRetryDoesNotRecordTwiceButStillClosesTheRequest() throws Exception {
         completedBy("hr-employee");
         when(attempts.find(TASK, "hr-employee")).thenReturn(Optional.of(proposal("REJECTED", 30, AttemptStatus.COMPLETED)));
 
         listener.recordHumanReview(job("REJECTED", 30));
 
         verify(attempts, never()).saveHumanDecision(any(), any(), any(), anyDouble(), any(), any(), any());
+        verify(requests).closeWithLatestCompletedAttempt(PROCESS);              // the save may have succeeded and the close failed
     }
 
     @Test
