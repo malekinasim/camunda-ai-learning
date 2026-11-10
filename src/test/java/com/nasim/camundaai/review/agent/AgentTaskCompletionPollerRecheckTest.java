@@ -142,7 +142,7 @@ class AgentTaskCompletionPollerRecheckTest {
 
         poller.completeAgentTasks();
 
-        verify(tasklist, times(1)).completeTask(eq("456"), eq(Map.of("approved", true)));
+        verify(tasklist, times(1)).completeTask(eq("456"), eq(Map.of("approved", true, "completedBy", "agent-bot")));
         verify(executor, times(1)).markAsAgentCompleteTask( eq(new AgentTask("456", "COMPLETED",
                         "agent-bot", 123L,
                         "Task_HrReview")),

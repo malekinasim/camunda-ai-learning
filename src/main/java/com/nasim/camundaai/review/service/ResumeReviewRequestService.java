@@ -17,6 +17,10 @@ public class ResumeReviewRequestService {
         this.resumeReviewRequestRepository = resumeReviewRequestRepository;
     }
 
+    public Optional<ResumeReviewRequest> findByProcessInstanceKey(Long processInstanceKey) {   // added (#31)
+        return resumeReviewRequestRepository.findByProcessInstanceKey(processInstanceKey);
+    }
+
     public ResumeReviewRequest getByProcessInstanceKey(Long processInstanceKey) {
         return resumeReviewRequestRepository.findByProcessInstanceKey(processInstanceKey)
                 .orElseThrow(() -> new IllegalStateException(

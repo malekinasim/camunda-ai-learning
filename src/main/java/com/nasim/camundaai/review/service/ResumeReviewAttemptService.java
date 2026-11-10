@@ -33,6 +33,17 @@ public class ResumeReviewAttemptService {
         return resumeReviewAttemptRepository.save(attempt);
     }
 
+    /** A person's decision on the task: saved as COMPLETED at once, it is the final result (#31). */
+    public ResumeReviewAttempt saveHumanDecision(String taskId, String reviewer, ResumeReviewRequest request,
+                                                 double matchScore, String verdict, String reason,
+                                                 ResumeReviewAttempt.ProposalReview proposalReview) {
+        ResumeReviewAttempt attempt = new ResumeReviewAttempt(
+                taskId, reason, verdict, matchScore, reviewer, request, AttemptStatus.COMPLETED);
+        attempt.setCompletedAt(LocalDateTime.now());
+        attempt.setProposalReview(proposalReview);
+        return resumeReviewAttemptRepository.save(attempt);
+    }
+
     public ResumeReviewAttempt reactivateIfWithdrawn(ResumeReviewAttempt attempt) {
         if (!AttemptStatus.WITHDRAWN.equals(attempt.getStatus())) {
             return attempt;

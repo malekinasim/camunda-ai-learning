@@ -23,6 +23,8 @@ public class AgentTaskCompletionPoller {
 
     private static final Logger log = LoggerFactory.getLogger(AgentTaskCompletionPoller.class);
     private static final String AGENT_ASSIGNEE = "agent-bot";
+    /** Completion variable set only by the agent; the end listener trusts it more than Tasklist's index (#31). */
+    public static final String COMPLETED_BY = "completedBy";
     private final TasklistClient tasklist;
     private final AgentTaskExecutors agentTaskExecutors;
     private final DecisionUtils decisionUtils;                                       // added
@@ -109,7 +111,9 @@ public class AgentTaskCompletionPoller {
         Decision decision = applyAutonomy(task.id(), result.variables());              // added: after-checks
         switch (decision.level()) {                                                     // added
             case AGENT_AUTONOMOUS -> {
-                tasklist.completeTask(task.id(), result.variables());
+                Map<String, Object> completion = new HashMap<>(result.variables());
+                completion.put(COMPLETED_BY, AGENT_ASSIGNEE);   // added (#31): tells the end listener the agent completed it
+                tasklist.completeTask(task.id(), completion);
                 agentTaskExecutor.get().markAsAgentCompleteTask(toAgentTask(tasklist.getTask(task.id())), AGENT_ASSIGNEE);
                 log.info("Task {} completed by {}: verdict={}",                        // added (#18)
                         task.id(), AGENT_ASSIGNEE, result.variables().get("verdict"));
