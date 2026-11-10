@@ -228,3 +228,13 @@ See [the full evaluation method, development/hold-out split, labeling policy, li
 Keep the working API path as a baseline. Generic recording across different task types is tracked by [#61](https://github.com/malekinasim/camunda-ai-learning/issues/61), and tool-use / retrieval by [#32](https://github.com/malekinasim/camunda-ai-learning/issues/32), [#34](https://github.com/malekinasim/camunda-ai-learning/issues/34) and [#35](https://github.com/malekinasim/camunda-ai-learning/issues/35). A separate browser executor could authenticate, open the assigned form, inspect actual options, fill the fields and verify submission. Prompts and DMN can provide the decision while the form supplies its current choices and validation behavior.
 
 Version-specific task APIs, authentication, and UI routes should sit behind adapters. This makes future upgrades manageable, but does not make browser automation automatically compatible with every Camunda version.
+
+C:\Windows\System32>docker stats --no-stream
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+
+C:\Windows\System32>
+
+
+
+
+
