@@ -111,6 +111,7 @@ class AgentTaskCompletionPollerTest {
             assertEquals("resume-review@2", saved.get().getSkillVersion());
             assertTrue(completionBody.get().contains("APPROVED"));
             assertTrue(completionBody.get().contains("reason"));
+            assertTrue(completionBody.get().contains("completedBy"));   // the end listener knows the agent completed it
             assertTrue(searchBody.get().contains("\"CREATED\""));   // the poller searches only active tasks
         } finally { server.stop(0); }
     }
