@@ -57,7 +57,7 @@ agentSkillsExtra = "hiring-policy"    # extra rules the agent applies when relev
 - Skills live in `src/main/resources/skills/<name>/SKILL.md`: a frontmatter (`name`, `version`, `description`, and for a main skill `inputs`) followed by the instructions.
 - A main skill also has `output.schema.json`. `AgentService` validates the model's output against it **in Java**: the skill describes the output, the controlling code enforces it. Invalid output fails the attempt; it never becomes a default result.
 - The main skill's instructions go in the `system` field, followed by the supporting skills and when to use them. Only the inputs the main skill declares are sent, each in its own tag in the user message. Text in a resume is data, not instructions; this is a first layer against prompt injection, not a full guard.
-- Every result stores the versions of all skills used (for example `resume-review@2,hiring-policy@1`) and the model.
+- Every result stores the versions of all skills used (for example `resume-review@3,hiring-policy@1`) and the model.
 
 Supporting skills are currently put in full into the system prompt, and the model decides when they apply. Loading them only on demand needs a tool-use loop (#32, #34).
 
@@ -169,9 +169,12 @@ What to expect:
 
 - `"roleLevel":"JUNIOR"` with a resume that matches the job: the agent completes the task.
 - `"roleLevel":"SENIOR"`, or a resume the agent rejects: the task goes back to `hr-employee`, and the form shows the agent's proposal.
+- A resume where a required criterion cannot be judged (for example the Java version is not stated): the agent answers `NEEDS_REVIEW`, and the task goes back to `hr-employee` without the proposal.
 - No active delegation, or no `roleLevel`: the task goes to `hr-employee` directly.
 
-The log line `Task …: autonomy before=…, after=…, final=…` shows how each decision was reached.
+The log line `Task …: autonomy before=…, after=…, final=…` shows how each decision was reached. The outcome depends on the job description: the expectations above assume a job with clear required criteria, such as the one in the golden dataset.
+
+A recorded run of all three levels, with log lines, Operate and Tasklist screenshots and the recorded human decisions, is in [docs/demo](docs/demo/README.md).
 
 The original example is available through `POST /start-review` with `resumeText` and `jobDescription`.
 
